@@ -1114,7 +1114,7 @@ void Particle::read_species_file()
   // all other lines must have NWORDS
 
   int NWORDS = 10;
-  char **words = new char*[NWORDS];
+  char **words = new char*[NWORDS+5];
   char line[MAXLINE],copy[MAXLINE];
 
   while (fgets(line,MAXLINE,fp)) {
@@ -1123,7 +1123,7 @@ void Particle::read_species_file()
 
     strcpy(copy,line);
     int nwords = wordcount(copy,NULL);
-    if (nwords != NWORDS)
+    if (nwords != NWORDS && nwords != (NWORDS+5))
       error->one(FLERR,"Incorrect line format in species file");
 
     if (nfile == maxfile) {
@@ -1151,6 +1151,14 @@ void Particle::read_species_file()
     fsp->specwt = atof(words[8]);
     fsp->charge = atof(words[9]);
 
+    if (nwords == (NWORDS+5)) {
+      fsp->RotTemp[0] = atof(words[10]);
+      fsp->RotTemp[1] = atof(words[11]);
+      fsp->RotTemp[2] = atof(words[12]);
+      fsp->symnum = atof(words[13]);
+      fsp->elecdegen = atof(words[14]);
+    }
+
     if (fsp->rotdof > 0 || fsp->vibdof > 0) fsp->internaldof = 1;
     else fsp->internaldof = 0;
 
@@ -1166,6 +1174,7 @@ void Particle::read_species_file()
     // may be overwritten by rotfile or vibfile
 
     fsp->nrottemp = 0;
+
     fsp->nvibmode = fsp->vibdof / 2;
 
     fsp->rottemp[0] = fsp->rottemp[1] = fsp->rottemp[2] = 0.0;

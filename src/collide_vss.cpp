@@ -206,6 +206,55 @@ int CollideVSS::test_collision(int icell, int igroup, int jgroup,
   if (vre/vremax[icell][igroup][jgroup] < random->uniform()) return 0;
   precoln.vr2 = vr2;
   return 1;
+
+
+/*
+  double *vi = ip->v;
+  double *vj = jp->v;
+  int ispecies = ip->ispecies;
+  int jspecies = jp->ispecies;
+  int nlocal = particle->nlocal;
+  double du  = vi[0] - vj[0];
+  double dv  = vi[1] - vj[1];
+  double dw  = vi[2] - vj[2];
+  double vr2 = du*du + dv*dv + dw*dw;
+  //double omega1 = params[ispecies].omega;
+  //double omega2 = params[jspecies].omega;
+  //double omega = 0.5 * (omega1+omega2);
+  double omega = CSomega[ispecies][jspecies];
+  //cout << omega << endl;
+  double vro  = pow(vr2,1.0-omega);
+
+  // although the vremax is calcualted for the group,
+  // the individual collisions calculated species dependent vre
+  //int kspecies, reactflag;
+  //precoln.etrans = 0.5 * precoln.mr * precoln.vr2;
+  //precoln.erot = ip->erot + jp->erot;
+  //ievib = ip->erot;
+  //jevib = jp->erot;
+  //precoln.evib = ip->evib + jp->evib;
+  //if (react) 
+   // reactflag = react->attempt(ip,jp,
+    //                           precoln.etrans,precoln.erot,
+    //                           precoln.evib,postcoln.etotal,kspecies);
+  
+  double epsilon = 2.0;         
+  double mr = 1.67356E-27 * 1.67356E-27 / (1.67356E-27 + 1.67356E-27);
+  double Tcoll = (mr * (pow(vi[0]-vj[0],2)+pow(vi[1]-vj[1],2)+pow(vi[2]-vj[2],2))) / (update->boltz * (5 - 2*omega));  //Paper Instructions (Nizenkov);
+  double Rcoll = (2 * MY_PIS / (epsilon)) * pow(2.97189e-10,2) * pow(Tcoll/273,1-omega) * pow(2*update->boltz*273/mr,.5);
+  Rcoll *= pow(2.5-omega,1-omega) * tgamma(2.5-omega) / tgamma(3.5-(2*omega));
+  double sigmaR = 1.66058E-15 / Rcoll;
+ 
+ 
+  //cout << ispecies << " " << jspecies << endl;
+  double vre = vro*prefactor[ispecies][jspecies];
+ // cout << react->prob << endl;
+  //if (react->prob > 1) vre = react->prob*vro*prefactor[ispecies][jspecies]; //In input file, species 2 is H; Added to correct for hydrogen recomb underprediction 
+  vremax[icell][igroup][jgroup] = MAX(vre,vremax[icell][igroup][jgroup]);
+  if (vre/vremax[icell][igroup][jgroup] < random->uniform()) return 0;
+  precoln.vr2 = vr2;
+  return 1;
+*/
 }
 
 /* ---------------------------------------------------------------------- */
@@ -275,7 +324,7 @@ int CollideVSS::perform_collision(Particle::OnePart *&ip,
 
   kp = NULL;
 
-  if (reactflag) {
+  if (reactflag && !react->computeChemRates) {
 
     // add 3rd K particle if reaction created it
     // index of new K particle = nlocal-1
@@ -421,7 +470,7 @@ void CollideVSS::SCATTER_TwoBodyScattering(Particle::OnePart *ip,
 }
 
 /* ---------------------------------------------------------------------- */
-
+/*
 void CollideVSS::EEXCHANGE_NonReactingEDisposal(Particle::OnePart *ip,
 						Particle::OnePart *jp)
 {
@@ -559,6 +608,207 @@ void CollideVSS::EEXCHANGE_NonReactingEDisposal(Particle::OnePart *ip,
   postcoln.eint = postcoln.erot + postcoln.evib;
   postcoln.etrans = E_Dispose;
 }
+*/
+
+/* ---------------------------------------------------------------------- */
+
+// Prohibits Double Relaxation
+void CollideVSS::EEXCHANGE_NonReactingEDisposal(Particle::OnePart *ip, 
+						Particle::OnePart *jp)
+{
+
+  double State_prob,Fraction_Vib,E_Dispose;
+  double phi,factor,transdof,pevib,Tt,vibdof_dis,A,omega;
+  int i,sp,rotdof,vibdof,max_level,ivib,imode,relaxflag1;
+
+  Particle::OnePart *p1,*p2,*p;
+  Particle::Species *species = particle->species;
+
+  double AdjustFactor = 0.99999999;
+  postcoln.erot = 0.0;
+  postcoln.evib = 0.0;
+  relaxflag1 = 0;
+  phi = 0.0;
+  factor= 1.0;
+
+  // handle each kind of energy disposal for non-reacting reactants
+
+  if (precoln.ave_dof == 0) {
+    ip->erot = 0.0;
+    jp->erot = 0.0;
+    ip->evib = 0.0;
+    jp->evib = 0.0;
+
+  } else {
+    E_Dispose = precoln.etrans;
+
+    do {
+      if (0.5 < random->uniform()) {
+          p1 = ip;
+          p2 = jp;
+      }   else {
+          p1 = jp;
+          p2 = ip;
+      }
+
+      for (i = 0; i < 2; i++) {
+        if (i == 0) p = p1;
+        else if (i == 1) p = p2;
+
+          sp = p->ispecies;
+          vibdof = species[sp].vibdof;
+          //transdof = 5.0-2.0*params[sp].omega;
+          omega = params[ip->ispecies][jp->ispecies].omega;
+          transdof = 5.0-2.0*omega;
+          Tt = (E_Dispose+p->evib) / (update->boltz * (transdof+vibdof));
+
+          if (vibdof) {
+              if (vibstyle == NONE) {
+                p->evib = 0.0;
+
+              } else if (vibstyle == SMOOTH) {
+
+                  factor *= 1/(1-phi);
+                  if (relaxflag == VARIABLE) phi = factor*(1.0 + vibdof/transdof)/species[sp].vibrel[0];
+//phi = factor*(1.0 + vibdof/transdof)/vibrel_prohibdouble(sp,E_Dispose+p->evib,vibdof+transdof);
+                  else phi = factor*(1.0 + vibdof/transdof)/species[sp].vibrel[0];
+
+                  if (phi >= random->uniform()) {
+                      E_Dispose += p->evib;
+                      if (vibdof == 2) {
+                          Fraction_Vib = 1.0 - pow(random->uniform(),(1.0/(2.5-omega)));
+                          p->evib= Fraction_Vib * E_Dispose;
+                      }
+                      else if (vibdof > 2) p->evib = E_Dispose * sample_bl(random,0.5*vibdof-1.0,1.5-omega);
+                      E_Dispose -= p->evib;
+                      postcoln.evib += p->evib;
+                      relaxflag1 = 1;
+                      break;
+                  }
+
+              } else if (vibstyle == DISCRETE) {
+                  if (vibdof == 2) {
+
+                      vibdof_dis = 2.0*(species[sp].vibtemp[0]/Tt) / (exp(species[sp].vibtemp[0]/Tt)-1);
+                      A = pow(vibdof_dis,2)*exp(species[sp].vibtemp[0]/Tt)/2.0;
+
+                      factor *= 1/(1-phi);
+                      if (relaxflag == VARIABLE) phi = factor*(1.0 + A/transdof)/species[sp].vibrel[0];
+//phi = factor*(1.0 + A/transdof)/vibrel_prohibdouble(sp,E_Dispose+p->evib,vibdof_dis+transdof);
+                      else phi = factor*(1.0 + A/transdof)/species[sp].vibrel[0];
+
+                      if (phi >= random->uniform()) {
+                          int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
+                          int pindex = p - particle->particles;
+                          E_Dispose += p->evib;
+                          max_level = static_cast<int>
+                            (E_Dispose / (update->boltz * species[sp].vibtemp[0]));
+                          do {
+                            ivib = static_cast<int>
+                              (random->uniform()*(max_level+AdjustFactor));
+                            p->evib = ivib * update->boltz * species[sp].vibtemp[0];
+                            State_prob = pow((1.0 - p->evib / E_Dispose),
+                                             (1.5 - omega));
+                          } while (State_prob < random->uniform());
+                          E_Dispose -= p->evib;
+                          postcoln.evib += p->evib;
+                          //vibmode[pindex][0] = ivib;
+                          relaxflag1 = 1;
+                          break;
+                      }
+
+                  } else if (vibdof > 2) {
+
+                      int nmode = particle->species[sp].nvibmode;
+                      int **vibmode =
+                        particle->eiarray[particle->ewhich[index_vibmode]];
+                      int pindex = p - particle->particles;
+
+                      imode = 0;
+                      while (imode < nmode) {
+
+                        vibdof_dis = 2.0*(species[sp].vibtemp[imode]/Tt) / (exp(species[sp].vibtemp[imode]/Tt)-1);
+                        A = pow(vibdof_dis,2)*exp(species[sp].vibtemp[imode]/Tt)/2.0;
+
+                        factor *= 1/(1-phi);
+                        if (relaxflag == VARIABLE) phi = factor*(1.0 + A/transdof)/species[sp].vibrel[imode];
+//phi = factor*(1.0 + A/transdof)/vibrel_prohibdouble(sp,E_Dispose+p->evib,vibdof_dis+transdof);
+                        else phi = factor*(1.0 + A/transdof)/species[sp].vibrel[imode];
+
+                        if (phi >= random->uniform()) {
+                            ivib = vibmode[pindex][imode];
+                            E_Dispose += ivib * update->boltz *
+                                    particle->species[sp].vibtemp[imode];
+                            p->evib -= ivib * update->boltz *
+                                    particle->species[sp].vibtemp[imode];
+                            max_level = static_cast<int>
+                              (E_Dispose / (update->boltz * species[sp].vibtemp[imode]));
+
+                            do {
+                              ivib = static_cast<int>
+                                (random->uniform()*(max_level+AdjustFactor));
+                              pevib = ivib * update->boltz * species[sp].vibtemp[imode];
+                              State_prob = pow((1.0 - pevib / E_Dispose),
+                                               (1.5 - omega));
+                            } while (State_prob < random->uniform());
+
+                            vibmode[pindex][imode] = ivib;
+                            p->evib += pevib;
+                            E_Dispose -= pevib;
+                            postcoln.evib += pevib;
+                            relaxflag1 = 1;
+                            break;
+                        }
+                        imode++;
+                      }
+                      if (relaxflag1) break;
+                    }
+                } // end of vibstyle if
+            } // end of vibdof if
+          if (relaxflag1) break;
+      }
+
+      if (relaxflag1) break;
+
+      for (i = 0; i < 2; i++) {
+        if (i == 0) p = p1;
+        else if (i == 1) p = p2;
+
+          sp = p->ispecies;
+          rotdof = species[sp].rotdof;
+          transdof = 5.0-2.0*omega;
+
+          if (rotdof) {
+            if (rotstyle == NONE) {
+                p->erot = 0.0;
+            } else {
+                factor *= 1/(1-phi);
+                if (relaxflag == VARIABLE)  phi = factor*(1.0 + rotdof/transdof)/species[sp].rotrel;
+//phi = factor*(1.0 + rotdof/transdof)/rotrel_prohibdouble(sp,E_Dispose+p->erot);
+                else phi = factor*(1.0 + rotdof/transdof)/species[sp].rotrel;
+
+                if (phi >= random->uniform()) {
+                    E_Dispose += p->erot;
+                    if (rotdof == 2) {
+                        Fraction_Vib = 1.0 - pow(random->uniform(),(1.0/(2.5-omega)));
+                        p->erot= Fraction_Vib * E_Dispose;
+                    }
+                    else if (rotdof > 2) p->erot = E_Dispose * sample_bl(random,0.5*rotdof-1.0,1.5-omega);
+                    E_Dispose -= p->erot;
+                    postcoln.erot += p->erot;
+                    break;
+                }
+            }
+          }
+      }
+    } while (0 > 1);
+  }
+
+  // compute portion of energy left over for scattering
+
+  postcoln.eint = postcoln.erot + postcoln.evib;
+  postcoln.etrans = E_Dispose;
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -647,7 +897,8 @@ void CollideVSS::EEXCHANGE_ReactingEDisposal(Particle::OnePart *ip,
     ip->evib = 0.0;
     jp->evib = 0.0;
     numspecies = 2;
-    aveomega = params[ip->ispecies][jp->ispecies].omega;
+    aveomega =  params[ip->ispecies][jp->ispecies].omega; 
+    //cout << "2 species" << endl;
   } else {
     ip->erot = 0.0;
     jp->erot = 0.0;
@@ -656,18 +907,159 @@ void CollideVSS::EEXCHANGE_ReactingEDisposal(Particle::OnePart *ip,
     jp->evib = 0.0;
     kp->evib = 0.0;
     numspecies = 3;
-    aveomega = (params[ip->ispecies][ip->ispecies].omega + params[jp->ispecies][jp->ispecies].omega +
-                params[kp->ispecies][kp->ispecies].omega)/3;
+    aveomega = (1/3)*(params[ip->ispecies][jp->ispecies].omega + params[ip->ispecies][kp->ispecies].omega + params[jp->ispecies][kp->ispecies].omega); 
+    //cout << "3 species" << endl;
   }
 
-  // handle each kind of energy disposal for non-reacting reactants
+  // handle each kind of energy disposal for reacting reactants
   // clean up memory for the products
-
+  
   double E_Dispose = postcoln.etotal;
+  double E_PreLB = postcoln.etotal;
+  //cout << E_Dispose << endl;
+  double zc, Tcol, zki;
+  if (E_Dispose < 0)
+    error->all(FLERR,"Impossible Energy Post-collision");
+
+  if (numspecies == 3) { 
+    int isp = ip->ispecies;
+    int jsp = jp->ispecies;
+    int ksp = kp->ispecies;
+    double aveomega12 = params[ip->ispecies][jp->ispecies].omega; 
+    double aveomega123 = aveomega;
+    int nvibmode[] = {species[isp].nvibmode, species[jsp].nvibmode, species[ksp].nvibmode};
+
+    
+    //Need to calculate a collisional tempertature Tcol between the particles; in addition, need to find post-collisional vibrational degrees of 
+    //freedom for colliding particles; values are then used for computation of the vibrational energies, assuming each vib mode is a harmonic oscillator
+    double omega[] = {aveomega12, aveomega123};
+    double nrotmode[] = {(double)species[isp].rotdof, (double)species[jsp].rotdof, (double)species[ksp].rotdof};
+    double xguess[] = {3000.0 , 2.0 , 2.0 , 2.0};
+    //cout << " newtonTcol4 Function call (494)" << endl;
+    double * newtinfo = newtonTcol4(4, nvibmode, postcoln.etotal, particle->species[isp].vibtemp, particle->species[jsp].vibtemp, particle->species[ksp].vibtemp, nrotmode, omega, xguess,
+               1e-4,
+               100);
+    //cout << "newtonTcol4 successfully executed" << endl;
+    Tcol = newtinfo[0];
+    double zvibi = newtinfo[1];
+    double zvibj = newtinfo[2];
+    double zvibk = newtinfo[3];
+   
+    //cout << "Returned values to collide_vss: " << Tcol << " " << zvibi << " " << zvibj << " " << zvibk << endl;
+    if ((Tcol < 0) || (zvibi < 0) || (zvibj < 0) || (zvibk < 0)) error->all(FLERR,"Negative returns from root solver");
+    zc = zvibi + zvibj + zvibk + species[isp].rotdof + species[jsp].rotdof + species[ksp].rotdof + 10 - 2*aveomega12 - 2*aveomega123;
+
+  } else if (numspecies == 2) {
+    int isp = ip->ispecies;
+    int jsp = jp->ispecies;
+
+
+    //double aveomega =  CSomega[ip->ispecies][jp->ispecies]; 
+    int nvibmode[] = {species[isp].nvibmode, species[jsp].nvibmode};
+
+    //Need to calculate a collisional tempertature Tcol between the particles; in addition, need to find post-collisional vibrational degrees of 
+    //freedom for colliding particles; values are then used for computation of the vibrational energies, assuming each vib mode is a harmonic oscillator
+    //cout << "New Material Start (490)" << endl;
+
+    double nrotmode[] = {(double)species[isp].rotdof, (double)species[jsp].rotdof};
+    double xguess[] = {3000.0 , 2.0 , 2.0};
+    //cout << " newtonTcol3 Function call (494)" << endl;
+    double * newtinfo = newtonTcol3(3, nvibmode, postcoln.etotal, particle->species[isp].vibtemp, particle->species[jsp].vibtemp, nrotmode, aveomega, xguess,
+               1e-4,
+               100);
+    //cout << "newtonTcol3 successfully executed" << endl;
+    Tcol = newtinfo[0];
+    double zvibi = newtinfo[1];
+    double zvibj = newtinfo[2];
+    //cout << "Returned values to collide_vss: " << Tcol << " " << zvibi << " " << zvibj << endl;
+    if ((Tcol < 0) || (zvibi < 0) || (zvibj < 0)) error->all(FLERR,"Negative returns from root solver");
+    zc = zvibi + zvibj + species[isp].rotdof + species[jsp].rotdof + 5 - 2*aveomega;
+  }
 
   for (i = 0; i < numspecies; i++) {
-    if (i == 0) p = ip;
-    else if (i == 1) p = jp;
+    if (i == 0) p = ip; 
+    else if (i == 1) p = jp; 
+    else p = kp;
+
+    int sp = p->ispecies;
+
+    vibdof = species[sp].vibdof;
+
+    if (vibdof) {
+      if (vibstyle == NONE) {
+        p->evib = 0.0;
+      } else if (vibdof == 2 && vibstyle == DISCRETE) {
+        int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
+        int pindex = p - particle->particles;
+        max_level = static_cast<int> 
+          (E_Dispose / (update->boltz * species[sp].vibtemp[0]));
+        do {
+          ivib = static_cast<int> 
+               (random->uniform()*(max_level+AdjustFactor));
+          p->evib = ivib * update->boltz * species[sp].vibtemp[0];
+          zki = (2 * species[sp].vibtemp[0] / Tcol) * (1 / (exp(species[sp].vibtemp[0]/Tcol) - 1));
+          State_prob = pow(((E_Dispose - p->evib) / (E_Dispose)),
+                                 (.5 * (zc - zki) - 1.0));
+        } while (State_prob < random->uniform());
+        E_Dispose -= p->evib;
+        zc -= zki;
+        //vibmode[pindex][0] = ivib;
+      } else if (vibdof == 2 && vibstyle == SMOOTH) {
+        Fraction_Vib =
+          1.0 - pow(random->uniform(),(1.0 / (2.5-aveomega)));
+        p->evib = Fraction_Vib * E_Dispose;
+        E_Dispose -= p->evib;
+
+      } else if (vibdof > 2 && vibstyle == SMOOTH) {
+          p->evib = E_Dispose * 
+          sample_bl(random,0.5*species[sp].vibdof-1.0,
+                   1.5-aveomega);
+          E_Dispose -= p->evib;
+      } else if (vibdof > 2 && vibstyle == DISCRETE) {
+          p->evib = 0.0;
+
+          int nmode = particle->species[sp].nvibmode;
+          int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
+          int pindex = p - particle->particles;
+          double zpe = 0.0;
+          for (int imode = 0; imode < nmode; imode++) {
+            zpe += 0.5 * update->boltz * species[sp].vibtemp[imode];
+          }
+          for (int imode = 0; imode < nmode; imode++) {
+            //ivib = vibmode[pindex][imode];
+            //E_Dispose += ivib * update->boltz * 
+            //particle->species[sp].vibtemp[imode];
+            //double pevibwithzpe;
+            max_level = static_cast<int>
+            (E_Dispose / (update->boltz * species[sp].vibtemp[imode]));
+            do {
+              ivib = static_cast<int> 
+              (random->uniform()*(max_level+AdjustFactor));
+              pevib = ivib * update->boltz * species[sp].vibtemp[imode];
+              //pevibwithzpe = (ivib + .5) * update->boltz * species[sp].vibtemp[imode];
+              zki = (2 * species[sp].vibtemp[0] / Tcol) * (1 / (exp(species[sp].vibtemp[0]/Tcol) - 1));
+              State_prob = pow(((E_Dispose - pevib) / (E_Dispose)),
+                                 (.5 * (zc - zki) - 1.0));
+              //State_prob = pow(((E_Dispose - pevibwithzpe) / (E_Dispose - 0.5 * update->boltz * species[sp].vibtemp[imode])),
+                                 //(.5 * (zc - zki) - 1.0));
+              //cout << E_Dispose << " " << ivib << " " << State_prob << endl;
+            } while (State_prob < random->uniform());
+
+            vibmode[pindex][imode] = ivib;
+            p->evib += pevib;
+            E_Dispose -= pevib;
+            //E_Dispose -= pevibwithzpe;
+            zc -= zki;
+            //cout << pevib << " " << zki << endl;
+          }        
+      }
+    }
+  } 
+
+
+  for (i = 0; i < numspecies; i++) {
+    if (i == 0) p = ip; 
+    else if (i == 1) p = jp; 
     else p = kp;
 
     int sp = p->ispecies;
@@ -681,87 +1073,32 @@ void CollideVSS::EEXCHANGE_ReactingEDisposal(Particle::OnePart *ip,
           1- pow(random->uniform(),(1/(2.5-aveomega)));
         p->erot = Fraction_Rot * E_Dispose;
         E_Dispose -= p->erot;
-
+        
       } else if (rotdof > 2) {
-        p->erot = E_Dispose *
+        p->erot = E_Dispose * 
           sample_bl(random,0.5*species[sp].rotdof-1.0,
                     1.5-aveomega);
         E_Dispose -= p->erot;
       }
     }
-
-    vibdof = species[sp].vibdof;
-
-    if (vibdof) {
-      if (vibstyle == NONE) {
-        p->evib = 0.0;
-      } else if (vibdof == 2 && vibstyle == DISCRETE) {
-        max_level = static_cast<int>
-          (E_Dispose / (update->boltz * species[sp].vibtemp[0]));
-        do {
-          ivib = static_cast<int>
-            (random->uniform()*(max_level+AdjustFactor));
-          p->evib = (double)
-            (ivib * update->boltz * species[sp].vibtemp[0]);
-          State_prob = pow((1.0 - p->evib / E_Dispose),
-                           (1.5 - aveomega));
-        } while (State_prob < random->uniform());
-        E_Dispose -= p->evib;
-
-      } else if (vibdof == 2 && vibstyle == SMOOTH) {
-        Fraction_Vib =
-          1.0 - pow(random->uniform(),(1.0 / (2.5-aveomega)));
-        p->evib = Fraction_Vib * E_Dispose;
-        E_Dispose -= p->evib;
-
-      } else if (vibdof > 2 && vibstyle == SMOOTH) {
-          p->evib = E_Dispose *
-          sample_bl(random,0.5*species[sp].vibdof-1.0,
-                   1.5-aveomega);
-          E_Dispose -= p->evib;
-      } else if (vibdof > 2 && vibstyle == DISCRETE) {
-          p->evib = 0.0;
-
-          int nmode = particle->species[sp].nvibmode;
-          int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
-          int pindex = p - particle->particles;
-
-          for (int imode = 0; imode < nmode; imode++) {
-            ivib = vibmode[pindex][imode];
-            E_Dispose += ivib * update->boltz *
-            particle->species[sp].vibtemp[imode];
-            max_level = static_cast<int>
-            (E_Dispose / (update->boltz * species[sp].vibtemp[imode]));
-            do {
-              ivib = static_cast<int>
-              (random->uniform()*(max_level+AdjustFactor));
-              pevib = ivib * update->boltz * species[sp].vibtemp[imode];
-              State_prob = pow((1.0 - pevib / E_Dispose),
-                               (1.5 - aveomega));
-            } while (State_prob < random->uniform());
-
-            vibmode[pindex][imode] = ivib;
-            p->evib += pevib;
-            E_Dispose -= pevib;
-          }
-        }
-      }
-    }
-
+  }
+  
   // compute post-collision internal energies
-
+  
   postcoln.erot = ip->erot + jp->erot;
   postcoln.evib = ip->evib + jp->evib;
-
+  
   if (kp) {
     postcoln.erot += kp->erot;
     postcoln.evib += kp->evib;
   }
-
+  
   // compute portion of energy left over for scattering
-
+  
   postcoln.eint = postcoln.erot + postcoln.evib;
   postcoln.etrans = E_Dispose;
+  //cout << "Pre_Energy: " << E_PreLB << " Vib E: " << postcoln.evib << " Rot E: " << postcoln.erot << " Trans E: " << postcoln.etrans << endl;
+  if (E_Dispose < 0) error->all(FLERR,"Impossible Energy Post-collision");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -786,11 +1123,9 @@ double CollideVSS::rotrel(int isp, double Ec)
   // Because we are only relaxing one of the particles in each call, we only
   //  include its DoF, consistent with Bird 2013 (3.32)
 
-  double Tr = Ec /(update->boltz *
-                   (2.5-params[isp][isp].omega +
-                    particle->species[isp].rotdof/2.0));
-  double rotphi = (1.0+params[isp][isp].rotc2/sqrt(Tr) +
-                   params[isp][isp].rotc3/Tr) / params[isp][isp].rotc1;
+  double Tr = Ec /(update->boltz * (2.5-params[isp][isp].omega + particle->species[isp].rotdof/2.0));
+  double rotphi = (1.0+params[isp][isp].rotc2/sqrt(Tr) + params[isp][isp].rotc3/Tr)
+                / params[isp][isp].rotc1;
   return rotphi;
 }
 
@@ -805,6 +1140,7 @@ double CollideVSS::vibrel(int isp, double Ec)
                          exp(params[isp][isp].vibc2/pow(Tr,1.0/3.0)));
   return vibphi;
 }
+
 
 /* ----------------------------------------------------------------------
    read list of species defined in species file
@@ -969,3 +1305,416 @@ double CollideVSS::extract(int isp, int jsp, const char *name)
   else error->all(FLERR,"Request for unknown parameter from collide");
   return 0.0;
 }
+
+/* ged.cpp -- Gaussian elimination linear equation solvers.
+ *
+ *  (C) 2001, C. Bond. All rights reserved.
+ *
+ *  Simple pivoting on zero diagonal element supported.
+ *   Eliminates unnecessary  zeroing of lower triangle.
+ *   Does not scale rows to unity pivot value.
+ *   Swaps b[] as well as a[][], so a pivot ID vector
+ *   is not required.
+ */
+
+double * CollideVSS::gelimd3(double mat[3][4])
+{
+    static double res[3];
+    int i,j,k;
+    int n = 3;
+
+/*    for(i=0;i<n;i++) 
+    {                   
+        for(j=i+1;j<n;j++)
+        {
+            if(abs(mat[i][i]) < abs(mat[j][i]))
+            {
+                for(k=0;k<n+1;k++)
+                {
+                    /* swapping mat[i][k] and mat[j][k] 
+        mat[i][k]=mat[i][k]+mat[j][k];
+                    mat[j][k]=mat[i][k]-mat[j][k];
+                    mat[i][k]=mat[i][k]-mat[j][k];
+                }
+            }
+      }
+    }
+ */  
+     /* performing Gaussian elimination */
+    for(i=0;i<n-1;i++)
+    {
+        for(j=i+1;j<n;j++)
+        {
+            float f=mat[j][i]/mat[i][i];
+            for(k=0;k<n+1;k++)
+            {
+              mat[j][k]=mat[j][k]-f*mat[i][k];
+      }
+        }
+    }
+    /* Backward substitution for discovering values of unknowns */
+    for(i=n-1;i>=0;i--)          
+    {                     
+        res[i]=mat[i][n];
+                    
+        for(j=i+1;j<n;j++)
+        {
+          if(i!=j)
+          {
+              res[i]=res[i]-mat[i][j]*res[j];
+          }          
+        }
+        res[i]=res[i]/mat[i][i];
+    }   
+    //std::cout << res[0] << " " << res[1] << " " << res[2] << std::endl;
+    return res;
+}
+
+double * CollideVSS::gelimd4(double mat[4][5])
+{
+    static double res[4];
+    int i,j,k;
+    int n = 4;
+
+ /*   for(i=0;i<n;i++) 
+    {                   
+        for(j=i+1;j<n;j++)
+        {
+            if(abs(mat[i][i]) < abs(mat[j][i]))
+            {
+                for(k=0;k<n+1;k++)
+                {
+                    /* swapping mat[i][k] and mat[j][k] 
+        mat[i][k]=mat[i][k]+mat[j][k];
+                    mat[j][k]=mat[i][k]-mat[j][k];
+                    mat[i][k]=mat[i][k]-mat[j][k];
+                }
+            }
+      }
+    } */
+   
+     /* performing Gaussian elimination */
+    for(i=0;i<n-1;i++)
+    {
+        for(j=i+1;j<n;j++)
+        {
+            float f=mat[j][i]/mat[i][i];
+            for(k=0;k<n+1;k++)
+            {
+              mat[j][k]=mat[j][k]-f*mat[i][k];
+      }
+        }
+    }
+    /* Backward substitution for discovering values of unknowns */
+    for(i=n-1;i>=0;i--)          
+    {                     
+        res[i]=mat[i][n];
+                    
+        for(j=i+1;j<n;j++)
+        {
+          if(i!=j)
+          {
+              res[i]=res[i]-mat[i][j]*res[j];
+          }          
+        }
+        res[i]=res[i]/mat[i][i];
+    }   
+    //std::cout << res[0] << " " << res[1] << " " << res[2] << " " << res[3] << std::endl;
+    return res;
+}
+
+
+/* ---------------------------------------------------------------------- */
+
+double CollideVSS::nizenkov_zvib(int nmode, double Tcol, double zeta, double VibT[])
+{
+  double f;
+  f = -zeta;
+  if (nmode != 0) {
+    for (int i = 0; i < nmode; i++) {
+      f += (2 * VibT[i] / Tcol)*(1 / (exp(VibT[i] / Tcol) - 1));
+     // std::cout << f << std::endl;
+    }
+  } 
+  return f;
+}
+
+/* ---------------------------------------------------------------------- */
+
+double CollideVSS::nizenkov_dzvib(int nmode, double Tcol, double zeta, double VibT[])
+{
+  double f;
+  f = 0.0;
+  if (nmode != 0) {
+    for (int i = 0; i < nmode; i++) {
+      f += (2 * VibT[i] / pow(Tcol,3)) * (VibT[i]*exp(VibT[i] / Tcol) - Tcol*exp(VibT[i] / Tcol) + Tcol) * pow((1 / (exp(VibT[i] / Tcol) - 1)),2);
+    }
+  } 
+  return f;
+}
+
+/* ----------------------------------------------------------------------
+   compute post-reaction energy information
+------------------------------------------------------------------------- */
+double * CollideVSS::newtonTcol3(int n, int nmode[], double Ecol, double vibTempi[], double vibTempj[], double zrot[], double omega,
+               double x0[],
+               double tol,
+               int nmax)
+{
+  // FUNCTION FOR CONVERTING COLLISIONAL ENERGY TO COLLISIONAL TEMPERATURE AND POST-COLLISION VIBRATIONAL DOFS
+  // Computes Tcol and zeta_vib for particles using Newtons Search method and system of Equations from Nizenkov et al.
+  // Search for values begins at some initial values "x0" until the search reaches a tolerance level "tol".
+
+  //std::cout << "Now inside newtonTcol function" << std::endl;
+  double f[3];
+  double df1dx1, df1dx2, df1dx3, df1dx4, df2dx1, df3dx1, df4dx1;
+  double * x, x_prev[3];
+  double err[3];
+  int i;
+
+  double boltz = 1.38064852e-23;
+
+  // Uses Newton's method to solve for a vibrational temperature given a
+  // distribution of vibrational energy levels.
+
+  // f and df are computed for Newton's search
+  //std::cout << "Calling zvib and dzvib functions" << std::endl;
+  //std::cout << Ecol << " " << x0[0] << " " << x0[1] << " " << x0[2] << " " << zrot[0] << " " << zrot[1] << " " << omega << std::endl;
+  f[0] = -Ecol + .5 * boltz * (x0[1]+x0[2]+zrot[0]+zrot[1]+5-(2*omega)) * x0[0];
+  //std::cout << "f0 calculated" << std::endl;
+  f[1] = nizenkov_zvib(nmode[0],x0[0],x0[1],vibTempi);
+  //std::cout << "f1 calculated" << std::endl;
+  f[2] = nizenkov_zvib(nmode[1],x0[0],x0[2],vibTempj);
+  //std::cout << f[0] << " " << f[1] << " " << f[2] << std::endl;
+
+  df1dx1 = .5*(x0[1]+x0[2])*boltz;
+  df1dx2 = df1dx3 = df1dx4 = .5*x0[0]*boltz;
+  df2dx1 = nizenkov_dzvib(nmode[0],x0[0],x0[1],vibTempi);
+  df3dx1 = nizenkov_dzvib(nmode[1],x0[0],x0[2],vibTempj);
+  //std::cout << df1dx1 << " " << df1dx2 << " " << df2dx1 << " " << df3dx1 << std::endl;
+  //std::cout << "zvib and dzvib functions completed" << std::endl;
+  // Create Jacobian, then sends to solver
+  double jac[3][4];
+  jac[0][0] = df1dx1;
+  jac[0][1] = df1dx2;
+  jac[0][2] = df1dx3;
+
+  jac[1][0] = df2dx1;
+  jac[1][1] = -1.0;
+  jac[1][2] = 0.0;
+
+  jac[2][0] = df3dx1;
+  jac[2][1] = 0.0;
+  jac[2][2] = -1.0;
+
+  jac[0][3] = f[0];
+  jac[1][3] = f[1];
+  jac[2][3] = f[2];
+  //std::cout << "sending jac to gelimd3" << std::endl;
+  x = gelimd3(jac);
+  //std::cout << "gelimd3 completed" << std::endl;
+  // Update guesses for variables and compute error
+  for (int j = 0; j < n; j++) {
+     //std::cout << *(x) << " " << *(x+1) << " " << *(x+2) << std::endl; 
+     x[j] = x0[j] - x[j];
+     err[j] = fabs(x[j]-x0[j]);
+  }
+  if (x[0] < 0.0) x[0] = 500;  //These checks occur to correct for any negative solutions returned, which occassionally occur when the difference between the root and guess are large.
+  if (x[1] < 0.0) x[1] = 1.0;
+  if (x[2] < 0.0) x[2] = 1.0;
+ // std::cout << x[0] << " " << x[1] << " " << x[2] << std::endl;
+  i=2;
+
+  // Continue to search for Tvib until the error is less than the tolerance:
+  while(((err[0] >= tol) || (err[1] >= tol) || (err[2] >= tol)) && (i <= nmax))
+  {
+    for (int j = 0; j < n; j++) {
+       x_prev[j] = x[j];
+    }
+
+    f[0] = -Ecol + .5 * boltz * (x[1]+x[2]+zrot[0]+zrot[1]+5-(2*omega)) * x[0];
+    f[1] = nizenkov_zvib(nmode[0],x[0],x[1],vibTempi);
+    f[2] = nizenkov_zvib(nmode[1],x[0],x[2],vibTempj);
+    //std::cout << f[0] << " " << f[1] << " " << f[2] << std::endl;
+
+    df1dx1 = .5*(x[1]+x[2]+x[3])*boltz;
+    df1dx2 = df1dx3 = df1dx4 = .5*x[0]*boltz;
+    df2dx1 = nizenkov_dzvib(nmode[0],x0[0],x0[1],vibTempi);
+    df3dx1 = nizenkov_dzvib(nmode[1],x0[0],x0[2],vibTempj);
+
+    jac[0][0] = df1dx1;
+    jac[0][1] = df1dx2;
+    jac[0][2] = df1dx3;
+
+    jac[1][0] = df2dx1;
+    jac[1][1] = -1.0;
+    jac[1][2] = 0.0;
+
+    jac[2][0] = df3dx1;
+    jac[2][1] = 0.0;
+    jac[2][2] = -1.0;
+
+    jac[0][3] = f[0];
+    jac[1][3] = f[1];
+    jac[2][3] = f[2];
+
+    x = gelimd3(jac);
+
+    for (int j = 0; j < n; j++) {
+       x[j] = x_prev[j] - x[j];
+       err[j] = fabs(x[j]-x_prev[j]);
+    }
+    if (x[0] < 0.0) x[0] = 500;  //These checks occur to correct for any negative solutions returned, which occassionally occur.
+    if (x[1] < 0.0) x[1] = 1.0;
+    if (x[2] < 0.0) x[2] = 1.0;
+    i=i+1;
+
+  }
+  //std::cout << "returned vaules to collide vss: " << x[0] << " " << x[1] << " " << x[2] << std::endl;
+  return x;
+
+}
+
+double * CollideVSS::newtonTcol4(int n, int nmode[], double Ecol, double vibTempi[], double vibTempj[], double vibTempk[], double zrot[], double omega[],
+               double x0[],
+               double tol,
+               int nmax)
+{
+  // FUNCTION FOR CONVERTING COLLISIONAL ENERGY TO COLLISIONAL TEMPERATURE AND POST-COLLISION VIBRATIONAL DOFS
+  // Computes Tcol and zeta_vib for particles using Newtons Search method and system of Equations from Nizenkov et al.
+  // Search for values begins at some initial values "x0" until the search reaches a tolerance level "tol".
+
+
+  double f[4];
+  double df1dx1, df1dx2, df1dx3, df1dx4, df2dx1, df3dx1, df4dx1;
+  double * x, x_prev[4];
+  double err[4];
+  int i;
+  double boltz = 1.38064852e-23;
+  //std::cout << "Now inside newtonTcol function" << std::endl;
+  // Uses Newton's method to solve for a vibrational temperature given a
+  // distribution of vibrational energy levels.
+
+  // f and df are computed for Newton's search
+  //std::cout << Ecol << " " << x0[0] << " " << x0[1] << " " << x0[2] << " " << x0[3] << " " << zrot[0] << " " << zrot[1] << " " << zrot[2] << " " << omega[0] << " " << omega[1] << " " << std::endl;
+  f[0] = -Ecol + .5 * boltz * (x0[1]+x0[2]+x0[3]+zrot[0]+zrot[1]+zrot[2]+10 - 2*(omega[0]+omega[1])) * x0[0];
+  //std::cout << f[0] << std::endl;
+  f[1] = nizenkov_zvib(nmode[0],x0[0],x0[1],vibTempi);
+  f[2] = nizenkov_zvib(nmode[1],x0[0],x0[2],vibTempj);
+  f[3] = nizenkov_zvib(nmode[2],x0[0],x0[3],vibTempk);
+  //std::cout << f[0] << " " << f[1] << " " << f[2] << " " << f[3] << std::endl;
+
+  df1dx1 = .5*(x0[1]+x0[2]+x0[3])*boltz;
+  df1dx2 = df1dx3 = df1dx4 = .5*x0[0]*boltz;
+  df2dx1 = nizenkov_dzvib(nmode[0],x0[0],x0[1],vibTempi);
+  df3dx1 = nizenkov_dzvib(nmode[1],x0[0],x0[2],vibTempj);
+  df4dx1 = nizenkov_dzvib(nmode[2],x0[0],x0[3],vibTempk);
+  //std::cout << "f and df functions called" << std::endl;
+
+  // Create Jacobian, then sends to solver
+
+  double jac[4][5];
+  jac[0][0] = df1dx1;
+  jac[0][1] = df1dx2;
+  jac[0][2] = df1dx3;
+  jac[0][3] = df1dx4;
+
+  jac[1][0] = df2dx1;
+  jac[1][1] = -1.0;
+  jac[1][2] = 0.0;
+  jac[1][3] = 0.0;
+
+  jac[2][0] = df3dx1;
+  jac[2][1] = 0.0;
+  jac[2][2] = -1.0;  
+  jac[2][3] = 0.0; 
+
+  jac[3][0] = df4dx1;
+  jac[3][1] = 0.0;
+  jac[3][2] = 0.0;  
+  jac[3][3] = -1.0; 
+
+  jac[0][4] = f[0];
+  jac[1][4] = f[1];
+  jac[2][4] = f[2];
+  jac[3][4] = f[3];
+  //std::cout << "jac solver call" << std::endl;
+  x = gelimd4(jac);
+  //std::cout << "jac solver returned" << std::endl;
+  //std::cout << *(x) << " " << *(x+1) << " " << *(x+2) << " " << *(x+3) << std::endl; 
+  // Update guesses for variables and compute error
+  for (int j = 0; j < n; j++) {
+     //std::cout << *(x) << " " << *(x+1) << " " << *(x+2) << " " << *(x+3) << std::endl; 
+     x[j] = x0[j] - x[j];
+     err[j] = fabs(x[j]-x0[j]);
+  }
+  if (x[0] < 0.0) x[0] = 500;  //These checks occur to correct for any negative solutions returned, which occassionally occur.
+  if (x[1] < 0.0) x[1] = 1.0;
+  if (x[2] < 0.0) x[2] = 1.0;
+  if (x[3] < 0.0) x[3] = 1.0;
+  i=2;
+
+  // Continue to search for Tvib until the error is less than the tolerance:
+  while(((err[0] >= tol) || (err[1] >= tol) || (err[2] >= tol) || (err[3] >= tol)) && (i <= nmax))
+  {
+    for (int j = 0; j < n; j++) {
+       x_prev[j] = x[j];
+    }
+    //std::cout << "loop f and df call" << std::endl;
+    //std::cout << "loop x value: " << x[0] << " " << x[1] << " " << x[2] <<  " " << x[3] << std::endl;
+    f[0] = -Ecol + .5 * boltz * (x[1]+x[2]+x[3]+zrot[0]+zrot[1]+zrot[2]+10 - 2*omega[0] - 2*omega[1]) * x[0];
+    f[1] = nizenkov_zvib(nmode[0],x[0],x[1],vibTempi);
+    f[2] = nizenkov_zvib(nmode[1],x[0],x[2],vibTempj);
+    f[3] = nizenkov_zvib(nmode[2],x[0],x[3],vibTempk);
+
+    df1dx1 = .5*(x[1]+x[2]+x[3])*boltz;
+    df1dx2 = df1dx3 = df1dx4 = .5*x[0]*boltz;
+    df2dx1 = nizenkov_dzvib(nmode[0],x0[0],x0[1],vibTempi);
+    df3dx1 = nizenkov_dzvib(nmode[1],x0[0],x0[2],vibTempj);
+    df4dx1 = nizenkov_dzvib(nmode[2],x0[0],x0[3],vibTempk);
+    //std::cout << "loop f and df call complete" << std::endl;
+    //std::cout << "loop f vals: " << f[0] << " " << f[1] << " " << f[2] << " " << f[3] << std::endl;
+    jac[0][0] = df1dx1;
+    jac[0][1] = df1dx2;
+    jac[0][2] = df1dx3;
+    jac[0][3] = df1dx4;
+
+    jac[1][0] = df2dx1;
+    jac[1][1] = -1.0;
+    jac[1][2] = 0.0;
+    jac[1][3] = 0.0;
+
+    jac[2][0] = df3dx1;
+    jac[2][1] = 0.0;
+    jac[2][2] = -1.0;  
+    jac[2][3] = 0.0; 
+
+    jac[3][0] = df4dx1;
+    jac[3][1] = 0.0;
+    jac[3][2] = 0.0;  
+    jac[3][3] = -1.0; 
+
+    jac[0][4] = f[0];
+    jac[1][4] = f[1];
+    jac[2][4] = f[2];
+    jac[3][4] = f[3];
+
+    x = gelimd4(jac);
+
+    for (int j = 0; j < n; j++) {
+       x[j] = x_prev[j] - x[j];
+       err[j] = fabs(x[j]-x_prev[j]);
+    }
+    if (x[0] < 0.0) x[0] = 500;  //These checks occur to correct for any negative solutions returned, which occassionally occur.
+    if (x[1] < 0.0) x[1] = 1.0;
+    if (x[2] < 0.0) x[2] = 1.0;
+    if (x[3] < 0.0) x[3] = 1.0;
+    i=i+1;
+
+  }
+  //std::cout << "returned vaules to collide vss: " << x[0] << " " << x[1] << " " << x[2] <<  " " << x[3] << std::endl;
+  return x;
+
+}
+
+

@@ -25,7 +25,7 @@ class Particle : protected Pointers {
   int exist;                // 1 if particles exist
   int sorted;               // 1 if particles are sorted by grid cell
 
-  enum{MAXVIBMODE=4};       // increase value if species need more vib modes
+  enum{MAXVIBMODE=40};       // increase value if species need more vib modes
 
   struct Species {          // info on each particle species, read from file
     char id[16];            // species ID
@@ -35,6 +35,7 @@ class Particle : protected Pointers {
     double charge;          // multiple of electron charge
     double rotrel;          // inverse rotational relaxation number
     double rottemp[3];      // rotational temperature(s)
+    double RotTemp[3];      // rotational temperature(s)
     double vibtemp[MAXVIBMODE];   // vibrational temperature(s)
     double vibrel[MAXVIBMODE];    // inverse vibrational relaxation number(s)
     int vibdegen[MAXVIBMODE];     // vibrational mode degeneracies
@@ -43,6 +44,8 @@ class Particle : protected Pointers {
     int internaldof;        // 1 if either rotdof or vibdof != 0
     int vibdiscrete_read;   // 1 if species.vib file read for this species
     double magmoment;       // magnetic moment, set by species_modify command
+    int symnum;            // rotational symmetry number
+    int elecdegen;          // ground-state electron degeneracy
   };
 
   struct RotFile {          // extra rotation info read from rotfile

@@ -28,9 +28,21 @@ class React : protected Pointers {
   int recombflag;            // 1 if any recombination reactions defined
   int recombflag_user;       // 0 if user has turned off recomb reactions
   int recomb_species;        // species of 3rd particle in recomb reaction
+  int computeChemRates;      // 1 if only computing a TCE rate without
+                             // actually doing reaction
+  int partition;         // 0 using normal chem model, 1 if using partition function to compute reverse rates
+  int partialEnergy;         // 0 if using rDOF model, 1 if using all energy
+
+  int tempwhich,tempindex,invoked_per_grid;
+  char *id_temp;
+  class Compute *ctemp;
+  class Fix *ftemp;
+  double *temp;
+
   double recomb_density;     // num density of particles in collision grid cell
   double recomb_boost;       // rate boost param for recombination reactions
   double recomb_boost_inverse;   // inverse of boost parameter
+  double recomb_Af;
   Particle::OnePart *recomb_part3;  // ptr to 3rd particle in recomb reaction
 
   int copy,copymode;         // 1 if class copy
@@ -47,8 +59,11 @@ class React : protected Pointers {
   virtual double extract_tally(int) = 0;
 
   void modify_params(int, char **);
+  virtual void compute_per_grid();
+  RanKnuth* get_random() { return random; }
 
  protected:
+  int nglocal;
   class RanKnuth *random;
 };
 

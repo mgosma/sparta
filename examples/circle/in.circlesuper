@@ -1,0 +1,65 @@
+################################################################################
+# 2d flow around a circle
+#
+# Note:
+#  - The "comm/sort” option to the “global” command is used to match MPI runs.
+#  - The “twopass” option is used to match Kokkos runs.
+# The "comm/sort" and "twopass" options should not be used for production runs.
+
+# tested configs:
+# original code with N/O atoms at 5000 m/s - clear shock no bump
+# original code with CH4 (smooth) at 5000 m/s - clear shock no bump
+# original code with CH4 (discrete) at 2500 m/s - clear shock
+# CH4 (discrete) at 5000 m/s with modified VSS Relaxation Code - thin shick layer, code seg faults at end of run
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code and Modififed Chemistry w/ reactions disabled - 
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code and Modififed Chemistry w/ reactions enabled - 
+################################################################################
+
+seed	    	    12345
+dimension   	    2
+global              gridcut 0.0 comm/sort yes
+
+boundary	    o o p
+
+create_box  	    -5 15 -15 25 -0.5e-5 0.5e-5
+create_grid 	    202 303 1 
+balance_grid        rcb cell
+global		    nrho 1.5e21 fnum 5e20
+
+species		    air.species CH4 vibfile methanereal.vib
+mixture		    air CH4 vstream 5000.0 0 0 
+
+read_surf           data.circle
+surf_collide	    1 diffuse 300.0 0.0
+surf_modify         all collide 1
+
+collide             vss air air.vss
+collide_modify      vibrate discrete
+fix                 vib vibmode
+
+fix		    in emit/face air xlo twopass # subsonic 0.1 NULL
+compute test thermal/grid all air temp press
+
+
+
+timestep 	    0.0001
+
+dump                2 image all 100 part.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75
+dump_modify	    2 pad 4
+
+
+dump                4 image all 100 Pressure.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75 grid c_test[2] particle no
+dump_modify	    4 pad 4 
+dump_modify         4 cmap grid 0.0 1600.0 cf 0.0 5 min blue 0.25 green 0.5 yellow 0.75 orange max red boxcolor black
+
+dump                5 image all 100 CellTemp.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75 grid c_test[1] particle no
+dump_modify	    5 pad 4 
+dump_modify         5 cmap grid 300.0 3000.0 cf 0.0 5 min blue 0.25 green 0.5 yellow 0.75 orange max red boxcolor black
+
+stats		    100
+stats_style	    step cpu np nattempt ncoll nscoll nscheck
+run 		    1000
+

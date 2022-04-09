@@ -32,7 +32,7 @@
 using namespace SPARTA_NS;
 using namespace MathConst;
 
-enum{DISSOCIATION,EXCHANGE,IONIZATION,RECOMBINATION};  // other react files
+enum{DISSOCIATION,EXCHANGE,IONIZATION,RECOMBINATION,REVERSE_EXCHANGE};  // other react files
 enum{ARRHENIUS,QUANTUM};                               // other react files
 
 #define MAXREACTANT 2
@@ -239,7 +239,7 @@ void ReactBird::init()
         (species[isp].mass + species[jsp].mass);
     double sigma = MY_PI*diam*diam;
 
-    // average DOFs participating in the reaction
+    // read effective internal DOFs participating in the reaction
 
     double z = r->coeff[0];
 
@@ -248,13 +248,14 @@ void ReactBird::init()
 
     double c1 = MY_PIS*epsilon*r->coeff[2]/(2.0*sigma) *
       sqrt(mr/(2.0*update->boltz*tref)) *
-      pow(tref,1.0-omega)/pow(update->boltz,r->coeff[3]-1.0+omega) *
-      tgamma(z+2.5-omega) / MAX(1.0e-6,tgamma(z+r->coeff[3]+1.5));
+      pow(tref,1.0-omega)/pow(update->boltz,r->coeff[3]-1.0+omega); // *
+//      tgamma(z+2.5-omega) / MAX(1.0e-6,tgamma(z+r->coeff[3]+1.5));
     double c2 = r->coeff[3] - 1.0 + omega;
-
+    recomb_Af = r->coeff[2];
     r->coeff[2] = c1;
-    r->coeff[3] = c2;
-    r->coeff[5] = z + 1.5 - omega;
+//    r->coeff[3] = c2;
+    r->coeff[5] = omega;
+    
 
     // add additional coeff for post-collision effective omega
     // mspec = post-collision species of the particle
@@ -657,6 +658,7 @@ void ReactBird::readfile(char *fname)
     else if (word[0] == 'E' || word[0] == 'e') r->type = EXCHANGE;
     else if (word[0] == 'I' || word[0] == 'i') r->type = IONIZATION;
     else if (word[0] == 'R' || word[0] == 'r') r->type = RECOMBINATION;
+    else if (word[0] == 'X' || word[0] == 'x') r->type = REVERSE_EXCHANGE;
     else {
       print_reaction(copy1,copy2);
       error->all(FLERR,"Invalid reaction type in file");
@@ -825,6 +827,7 @@ void ReactBird::print_reaction(OneReaction *r)
   else if (r->type == EXCHANGE) type = 'E';
   else if (r->type == IONIZATION) type = 'I';
   else if (r->type == RECOMBINATION) type = 'R';
+  else if (r->type == REVERSE_EXCHANGE) type = 'X';
 
   char style;
   if (r->style == ARRHENIUS) style = 'A';
