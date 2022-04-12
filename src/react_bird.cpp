@@ -251,7 +251,7 @@ void ReactBird::init()
       pow(tref,1.0-omega)/pow(update->boltz,r->coeff[3]-1.0+omega); // *
 //      tgamma(z+2.5-omega) / MAX(1.0e-6,tgamma(z+r->coeff[3]+1.5));
     double c2 = r->coeff[3] - 1.0 + omega;
-    recomb_Af = r->coeff[2];
+    r->coeff[7] = r->coeff[2];
     r->coeff[2] = c1;
 //    r->coeff[3] = c2;
     r->coeff[5] = omega;
@@ -580,7 +580,7 @@ void ReactBird::readfile(char *fname)
         r->id_products = new char*[MAXPRODUCT];
         r->reactants = new int[MAXREACTANT];
         r->products = new int[MAXPRODUCT];
-        r->coeff = new double[MAXCOEFF];
+        r->coeff = new double[MAXCOEFF+1];
         r->id = NULL;
       }
     }

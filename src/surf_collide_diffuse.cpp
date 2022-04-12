@@ -314,7 +314,41 @@ void SurfCollideDiffuse::diffuse(Particle::OnePart *p, double *norm)
     // initialize rot/vib energy
 
     p->erot = particle->erot(ispecies,twall,random);
-    p->evib = particle->evib(ispecies,twall,random);
+    //if (collide && collide->vibstyle == DISCRETE) {
+    int isp = p->ispecies;
+    int nmode = particle->species[isp].nvibmode;
+    int index_vibmode = particle->find_custom((char *) "vibmode");
+    int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
+    int pindex = p - particle->particles;
+    //cout << "fix evib called" << endl;
+    // no modes, just return
+
+    if (nmode == 0) return;
+          
+    // single mode, evib already set by Particle::evib()
+    // just convert evib back to mode level
+
+    if (nmode == 1) {
+      p->evib = particle->evib(ispecies,twall,random);
+      vibmode[pindex][0] = static_cast<int> 
+        (p->evib / update->boltz / 
+         particle->species[isp].vibtemp[0]);
+      return;
+    }
+
+    // loop over modes and populate each
+    // accumlate new total evib
+    else {
+    int ivib;
+    double evib = 0.0;
+      for (int imode = 0; imode < nmode; imode++) {
+        ivib = static_cast<int> (-log(random->uniform()) * twall /
+	                     particle->species[isp].vibtemp[imode]);
+        vibmode[pindex][imode] = ivib;
+        evib += ivib * update->boltz * particle->species[isp].vibtemp[imode];
+      }
+      p->evib = evib;
+    }
   }
 }
 
