@@ -88,12 +88,16 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 
     // average DOFs participating in the reaction
 
+
+
     if (partialEnergy) {
        ecc = pre_etrans;
        z = r->coeff[0];
        if (pre_ave_rotdof > 0.1) ecc += pre_erot*z/pre_ave_rotdof;
     }
     else {
+       if (temp[icell] < 1 || temp[icell] > 1000000) compute_per_grid();
+       if (temp[icell] < 1 || temp[icell] > 1000000) continue;
        ecc = pre_etotal;
        if (pre_etotal+r->coeff[4] <= 0.0) continue; // Cover cases where coeff[1].neq.coeff[4]
        z = pre_ave_rotdof;
@@ -103,14 +107,42 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
               inmode = species[isp].nvibmode;
 	      iTvib = newtonTvib(inmode,ievib,particle->species[isp].vibtemp,3000,1e-4,1000); //Instantaneous T
 	      zi = (2 * ievib)/(update->boltz * iTvib); //Instantaneous z
+	      //zi = 2*(species[isp].vibtemp[0]/temp[icell]) / (exp(species[isp].vibtemp[0]/temp[icell])-1); //non-Instantaneous z
+              if (species[isp].nvibmode == 1) zi = species[isp].vibdof;
 	    }
 
 	    if (jevib > 1e-26) {
               jnmode = species[jsp].nvibmode;
 	      jTvib = newtonTvib(jnmode,jevib,particle->species[jsp].vibtemp,3000,1e-4,1000); //Instantaneous T
 	      zj = (2 * jevib)/(update->boltz * jTvib); //Instantaneous z
-	    }  
+	      //zj = 2*(species[jsp].vibtemp[0]/temp[icell]) / (exp(species[jsp].vibtemp[0]/temp[icell])-1); //Instantaneous z
+              if (species[isp].nvibmode == 1) zj = species[jsp].vibdof;
+	    }   
+/*
+	   if (ievib > 1e-26) {
+              inmode = species[isp].nvibmode;
+              if (inmode == 1) {
+                   double BGGasEVib = 1 / (exp(particle->species[isp].vibtemp[0] / 15000.0) - 1);
+                   zi = 2 * BGGasEVib * log(1.0/BGGasEVib + 1.0);
+              }
+              else { 
+	        iTvib = newtonTvib(inmode,ievib,particle->species[isp].vibtemp,3000,1e-4,1000); //Instantaneous T
+	        zi = (2 * ievib)/(update->boltz * iTvib); //Instantaneous z
+              }
+	    }
 
+	    if (jevib > 1e-26) {
+              jnmode = species[jsp].nvibmode;
+              if (jnmode == 1) {
+                   double BGGasEVib = 1 / (exp(particle->species[jsp].vibtemp[0] / 15000.0) - 1);
+                   zj = 2 * BGGasEVib * log(1.0/BGGasEVib + 1.0);
+              }
+              else { 
+	        jTvib = newtonTvib(jnmode,jevib,particle->species[jsp].vibtemp,3000,1e-4,1000); //Instantaneous T
+	        zj = (2 * jevib)/(update->boltz * jTvib); //Instantaneous z
+              }
+	    }  
+*/
             //cout << zi << " " << ievib << " " << zj << " " << jevib << endl;
 	    if (isnan(zi) || isnan(zj) || zi<0 || zj<0) {
               //cout << zi << " " << zj << " " << ievib << " " << jevib << endl;
@@ -118,11 +150,10 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 	    }
             z = pre_ave_rotdof + 0.5 * (zi+zj);
        }
-       
+       //cout << z << " " << zi << " " << zj << " " << ievib << " " << jevib << endl;
     }
 
-    if (temp[icell] < 1 || temp[icell] > 1000000) compute_per_grid();
-    if (temp[icell] < 1 || temp[icell] > 1000000) continue;
+
     //if (temp[icell] < 1) cout << "grid cell temp still zero" << endl;
     // compute probability of reaction
 
