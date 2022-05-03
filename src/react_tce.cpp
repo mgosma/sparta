@@ -25,8 +25,8 @@
 #include "compute.h"
 
 using namespace SPARTA_NS;
-//#include <iostream>
-//using namespace std;
+#include <iostream>
+using namespace std;
 enum{NONE,DISCRETE,SMOOTH};
 enum{DISSOCIATION,EXCHANGE,IONIZATION,RECOMBINATION,REVERSE_EXCHANGE};   // other files
 
@@ -109,7 +109,7 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
             inmode = species[isp].nvibmode;
             jnmode = species[jsp].nvibmode;
 	    //Cell-Averaged z for diatomic molecules (note, this should probably be Tvib instead of Tcell)
-            if (inmode == 1) zi = 2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
+            if (inmode == 1 && temp[icell] > 300.0) zi = 2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
             else if (inmode > 1) {
 	      if (ievib < 1e-26 ) zi = 0.0; //Low Energy Cut-Off to prevent nan solutions to newtonTvib
               //Instantaneous T for polyatomic
@@ -119,7 +119,7 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
               }
 	    }
 
-            if (jnmode == 1) zj = 2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
+            if (jnmode == 1 && temp[icell] > 300.0) zj = 2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
             else if (inmode > 1) {
 	      if (jevib < 1e-26) zj = 0.0;
               else {
@@ -130,8 +130,8 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 
             //cout << zi << " " << ievib << " " << zj << " " << jevib << endl;
 	    if (isnan(zi) || isnan(zj) || zi<0 || zj<0) {
-              //cout << z << " " << zi << " " << zj << " " << inmode << " " << jnmode << endl;
-              //cout << zi << " " << zj << " " << ievib << " " << jevib << endl;
+              cout << z << " " << (2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 )) << " " << (2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 )) << " " << temp[icell] << " " << particle->species[isp].vibtemp[0] << endl;
+              cout << zi << " " << zj << " " << ievib << " " << jevib << endl;
               error->all(FLERR,"Root-Finding Error");
 	    }
             z = pre_ave_rotdof + 0.5 * (zi+zj);
