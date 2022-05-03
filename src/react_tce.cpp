@@ -73,6 +73,9 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
   double random_prob = random->uniform();
   zi = 0.0;
   zj = 0.0;
+  iTvib = 0.0;
+  jTvib = 0.0;
+  
   // loop over possible reactions for these 2 species
 
   for (int i = 0; i < n; i++) {
@@ -102,55 +105,42 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
        if (pre_etotal+r->coeff[4] <= 0.0) continue; // Cover cases where coeff[1].neq.coeff[4]
        z = pre_ave_rotdof;
        if (collide->vibstyle == SMOOTH) z += (species[isp].vibdof + species[jsp].vibdof)/2.0;
-       else if (collide->vibstyle == DISCRETE) {
-	   if (ievib > 1e-26) {
-              inmode = species[isp].nvibmode;
-	      iTvib = newtonTvib(inmode,ievib,particle->species[isp].vibtemp,3000,1e-4,1000); //Instantaneous T
-	      zi = (2 * ievib)/(update->boltz * iTvib); //Instantaneous z
-	      //zi = 2*(species[isp].vibtemp[0]/temp[icell]) / (exp(species[isp].vibtemp[0]/temp[icell])-1); //non-Instantaneous z
-              if (species[isp].nvibmode == 1) zi = species[isp].vibdof;
-	    }
-
-	    if (jevib > 1e-26) {
-              jnmode = species[jsp].nvibmode;
-	      jTvib = newtonTvib(jnmode,jevib,particle->species[jsp].vibtemp,3000,1e-4,1000); //Instantaneous T
-	      zj = (2 * jevib)/(update->boltz * jTvib); //Instantaneous z
-	      //zj = 2*(species[jsp].vibtemp[0]/temp[icell]) / (exp(species[jsp].vibtemp[0]/temp[icell])-1); //Instantaneous z
-              if (species[isp].nvibmode == 1) zj = species[jsp].vibdof;
-	    }   
-/*
-	   if (ievib > 1e-26) {
-              inmode = species[isp].nvibmode;
-              if (inmode == 1) {
-                   double BGGasEVib = 1 / (exp(particle->species[isp].vibtemp[0] / 15000.0) - 1);
-                   zi = 2 * BGGasEVib * log(1.0/BGGasEVib + 1.0);
-              }
-              else { 
-	        iTvib = newtonTvib(inmode,ievib,particle->species[isp].vibtemp,3000,1e-4,1000); //Instantaneous T
-	        zi = (2 * ievib)/(update->boltz * iTvib); //Instantaneous z
+       else if (collide->vibstyle == DISCRETE) {             
+            inmode = species[isp].nvibmode;
+            jnmode = species[jsp].nvibmode;
+	    //Cell-Averaged z for diatomic molecules (note, this should probably be Tvib instead of Tcell)
+            if (inmode < 2) zi = 2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
+            else {
+	      if (ievib < 1e-26) zi = 0.0; //Low Energy Cut-Off to prevent nan solutions to newtonTvib
+              //Instantaneous T for polyatomic
+              else {
+                iTvib = newtonTvib(inmode,ievib,particle->species[isp].vibtemp,3000,1e-4,1000); 
+	        zi = (2 * ievib)/(update->boltz * iTvib); 
               }
 	    }
 
-	    if (jevib > 1e-26) {
-              jnmode = species[jsp].nvibmode;
-              if (jnmode == 1) {
-                   double BGGasEVib = 1 / (exp(particle->species[jsp].vibtemp[0] / 15000.0) - 1);
-                   zj = 2 * BGGasEVib * log(1.0/BGGasEVib + 1.0);
-              }
-              else { 
-	        jTvib = newtonTvib(jnmode,jevib,particle->species[jsp].vibtemp,3000,1e-4,1000); //Instantaneous T
-	        zj = (2 * jevib)/(update->boltz * jTvib); //Instantaneous z
-              }
+            if (jnmode < 2) zj = 2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
+            else{
+	      if (jevib < 1e-26) zj = 0.0;
+              else {
+                jTvib = newtonTvib(jnmode,jevib,particle->species[jsp].vibtemp,3000,1e-4,1000);
+	        zj = (2 * jevib)/(update->boltz * jTvib);  
+              }         
 	    }  
-*/
+
             //cout << zi << " " << ievib << " " << zj << " " << jevib << endl;
 	    if (isnan(zi) || isnan(zj) || zi<0 || zj<0) {
               //cout << zi << " " << zj << " " << ievib << " " << jevib << endl;
               error->all(FLERR,"Root-Finding Error");
 	    }
-            z = pre_ave_rotdof + 0.5 * (zi+zj);
+
+
+            double zpre = pre_ave_rotdof + 0.5 * (zi+zj);
+            z = pre_ave_rotdof + 2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
+            
        }
-       //cout << z << " " << zi << " " << zj << " " << ievib << " " << jevib << endl;
+       double zpre = pre_ave_rotdof + 0.5 * (zi+zj);
+       //cout << z << " " << zpre << " " << z-zpre << " " << zi << " " << zj << " " << inmode << " " << jnmode << endl;
     }
 
 
