@@ -135,12 +135,10 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 	    }
 
 
-            double zpre = pre_ave_rotdof + 0.5 * (zi+zj);
-            z = pre_ave_rotdof + 2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
+            z = pre_ave_rotdof + 0.5 * (zi+zj);
             
        }
-       double zpre = pre_ave_rotdof + 0.5 * (zi+zj);
-       //cout << z << " " << zpre << " " << z-zpre << " " << zi << " " << zj << " " << inmode << " " << jnmode << endl;
+       //cout << z << " " << zi << " " << zj << " " << inmode << " " << jnmode << endl;
     }
 
 
