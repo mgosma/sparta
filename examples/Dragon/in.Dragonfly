@@ -1,0 +1,56 @@
+################################################################################
+# 2d axi-symetric flow around a dragonfly capsule
+#
+# Note:
+#  - The "comm/sort” option to the “global” command is used to match MPI runs.
+#  - The “twopass” option is used to match Kokkos runs.
+# The "comm/sort" and "twopass" options should not be used for production runs. 
+################################################################################
+
+seed	    	    12345
+dimension   	    2
+global              gridcut 0.0 comm/sort yes
+
+boundary	    o ao p
+
+create_box  	    -1 4 0 5 -0.5e-5 0.5e-5
+create_grid 	    500 500 1 
+balance_grid        rcb cell
+global		    fnum 1e17 weight cell radius
+
+species		    Titan.species N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar vibfile Titan.vib rotfile Titan.rot elecfile Titan.elec
+mixture		    air N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar vstream 6167.0 0.0 0.0 temp 179 nrho 1.347e20
+mixture             air N2 frac 0.97
+mixture             air CH4 frac 0.023
+mixture             air Ar frac 0.007
+
+read_surf           data.dragonfly
+surf_collide	    1 diffuse 300.0 1.0
+surf_modify         all collide 1
+fix 7 balance 250 1.1 rcb time
+collide             vss air Titan.vss
+collide_modify      vibrate discrete
+fix                 1 vibmode
+#create_particles    air n 0 
+fix		    in emit/face air xlo twopass # subsonic 0.1 NULL
+compute test thermal/grid all air temp press
+timestep 	    0.00000001
+
+dump                2 image all 5000 image.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75
+dump_modify	    2 pad 4
+
+dump                4 image all 5000 Pressure.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75 grid c_test[2] particle no
+dump_modify	    4 pad 4 
+dump_modify         4 cmap grid 0.0 300.0 cf 0.0 5 min blue 0.25 green 0.5 yellow 0.75 orange max red boxcolor black
+
+dump                5 image all 5000 CellTemp.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75 grid c_test[1] particle no
+dump_modify	    5 pad 4 
+dump_modify         5 cmap grid 300.0 20000.0 cf 0.0 5 min blue 0.25 green 0.5 yellow 0.75 orange max red boxcolor black
+
+stats		    1000
+stats_style	    step cpu np nattempt ncoll nscoll nscheck
+run 		    1000000
+

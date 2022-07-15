@@ -99,8 +99,8 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
        if (pre_ave_rotdof > 0.1) ecc += pre_erot*z/pre_ave_rotdof;
     }
     else {
-       if (temp[icell] < 1 || temp[icell] > 1000000) compute_per_grid();
-       if (temp[icell] < 1 || temp[icell] > 1000000) continue;
+       if (temp[icell] < 1 || temp[icell] > 10000000) compute_per_grid();
+       if (temp[icell] < 1 || temp[icell] > 10000000 || isnan(temp[icell])) continue;
        ecc = pre_etotal;
        if (pre_etotal+r->coeff[4] <= 0.0) continue; // Cover cases where coeff[1].neq.coeff[4]
        z = pre_ave_rotdof;
@@ -171,10 +171,18 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
         if (partition && partialEnergy==0) {
 		int ksp = r->products[0]; 
 		int lsp = r->products[1]; 
-		Qi = Partition(species[isp].nvibmode, species[isp].rotdof, particle->species[isp].symnum, particle->species[isp].elecdegen, particle->species[isp].vibtemp, particle->species[isp].RotTemp, species[isp].mass, temp[icell]);
-		Qj = Partition(species[jsp].nvibmode, species[jsp].rotdof, particle->species[jsp].symnum, particle->species[jsp].elecdegen, particle->species[jsp].vibtemp, particle->species[jsp].RotTemp, species[jsp].mass, temp[icell]);
-		Qk = Partition(species[ksp].nvibmode, species[ksp].rotdof, particle->species[ksp].symnum, particle->species[ksp].elecdegen, particle->species[ksp].vibtemp, particle->species[ksp].RotTemp, species[ksp].mass, temp[icell]);
-		Ql = Partition(species[lsp].nvibmode, species[lsp].rotdof, particle->species[lsp].symnum, particle->species[lsp].elecdegen, particle->species[lsp].vibtemp, particle->species[lsp].RotTemp, species[lsp].mass, temp[icell]);
+		Qi = Partition(species[isp].nvibmode, species[isp].rotdof, species[isp].nelecmode, particle->species[isp].symnum, 
+		                    particle->species[isp].elecdeg, particle->species[isp].electemp, particle->species[isp].vibtemp, 
+		                    particle->species[isp].rottemp, species[isp].mass, temp[icell]);
+		Qj = Partition(species[jsp].nvibmode, species[jsp].rotdof, species[jsp].nelecmode, particle->species[jsp].symnum, 
+		                    particle->species[jsp].elecdeg, particle->species[jsp].electemp, particle->species[jsp].vibtemp, 
+		                    particle->species[jsp].rottemp, species[jsp].mass, temp[icell]);
+		Qk = Partition(species[ksp].nvibmode, species[ksp].rotdof, species[ksp].nelecmode, particle->species[ksp].symnum, 
+		                    particle->species[ksp].elecdeg, particle->species[ksp].electemp, particle->species[ksp].vibtemp, 
+		                    particle->species[ksp].rottemp, species[ksp].mass, temp[icell]);
+		Ql = Partition(species[lsp].nvibmode, species[lsp].rotdof, species[lsp].nelecmode, particle->species[lsp].symnum, 
+		                    particle->species[lsp].elecdeg, particle->species[lsp].electemp, particle->species[lsp].vibtemp, 
+		                    particle->species[lsp].rottemp, species[lsp].mass, temp[icell]);
 		double EactivBackward = r->coeff[1] + (-1 * r->coeff[4]);
 		if (EactivBackward < 0) EactivBackward = 0;
 		Qreact = (Qi * Qj)/(Qk * Ql)*exp((-1) * (r->coeff[1]-EactivBackward)  / (temp[icell] * update->boltz));
@@ -193,9 +201,9 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 
 
         if (isnan(react_prob)) {   
-           //cout << Qi << " " << Qj << " " << Qk << " " << Ql << endl;
-           //cout << zi << " " << zj << endl;
-           //cout << icell << " " << temp[icell] << " " << sizeof(temp)/sizeof(temp[0]) << endl;
+           cout << Qi << " " << Qj << " " << Qk << " " << Ql << endl;
+           cout << zi << " " << zj << endl;
+           cout << icell << " " << temp[icell] << " " << sizeof(temp)/sizeof(temp[0]) << endl;
            error->all(FLERR,"Reaction Test Error");
         }
         break;
@@ -236,15 +244,15 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 		double sigma = MY_PI*diam*diam;
 		if (partition) {
 			int ksp = r->products[0]; //Begin modifications from Nizenkov et al.
-			Qi = Partition(species[isp].nvibmode, species[isp].rotdof, particle->species[isp].symnum, 
-		                    particle->species[isp].elecdegen, particle->species[isp].vibtemp, 
-		                    particle->species[isp].RotTemp, species[isp].mass, temp[icell]);
-			Qj = Partition(species[jsp].nvibmode, species[jsp].rotdof, particle->species[jsp].symnum,
-		                    particle->species[jsp].elecdegen, particle->species[jsp].vibtemp, 
-		                    particle->species[jsp].RotTemp, species[jsp].mass, temp[icell]);
-			Qk = Partition(species[ksp].nvibmode, species[ksp].rotdof, particle->species[ksp].symnum,
-		                    particle->species[ksp].elecdegen, particle->species[ksp].vibtemp, 
-		                    particle->species[ksp].RotTemp, species[ksp].mass, temp[icell]);
+			Qi = Partition(species[isp].nvibmode, species[isp].rotdof, species[isp].nelecmode, particle->species[isp].symnum, 
+		                    particle->species[isp].elecdeg, particle->species[isp].electemp, particle->species[isp].vibtemp, 
+		                    particle->species[isp].rottemp, species[isp].mass, temp[icell]);
+			Qj = Partition(species[jsp].nvibmode, species[jsp].rotdof, species[jsp].nelecmode, particle->species[jsp].symnum, 
+		                    particle->species[jsp].elecdeg, particle->species[jsp].electemp, particle->species[jsp].vibtemp, 
+		                    particle->species[jsp].rottemp, species[jsp].mass, temp[icell]);
+			Qk = Partition(species[ksp].nvibmode, species[ksp].rotdof, species[ksp].nelecmode, particle->species[ksp].symnum, 
+		                    particle->species[ksp].elecdeg, particle->species[ksp].electemp, particle->species[ksp].vibtemp, 
+		                    particle->species[ksp].rottemp, species[ksp].mass, temp[icell]);
 			Qreact = (Qi * Qj)/Qk;
 			Kb = (r->coeff[7] * pow(temp[icell],r->coeff[3])) / Qreact;
 		} else {
@@ -262,7 +270,7 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
                 //cout << r->coeff[0] << " " << r->coeff[1] << " " << r->coeff[2] << " " << r->coeff[3] << " " << r->coeff[4] << " " << r->coeff[7] << " " << endl;
 		//cout << Kb << " " << Rcoll << " " << recomb_density * Kb / Rcoll << " " << random_prob << " " << Qreact << " "  << pow(temp[icell],r->coeff[3]) << " " << temp[icell] <<endl;
 		if (isnan(react_prob)) { 
-		   //cout << "Partition error: " << Qi << " " << Qj << " " << Qk << endl;
+		   cout << "Partition error: " << Qi << " " << Qj << " " << Qk << " " << temp[icell] << endl;
 		   error->all(FLERR,"Reaction Test Error");
 		}
         }
@@ -424,7 +432,7 @@ double ReactTCE::newtonTvib(int nmode, double Evib, double vibTemp[],
 
 /* ---------------------------------------------------------------------- */
 
-double ReactTCE::Partition(int nvibmode, int nrotmode, int sym, int edegen, double VibTemp[], double RotTemp[], double mass, double CellTemp)
+double ReactTCE::Partition(int nvibmode, int nrotmode, int nelmode, int sym, int edegen[], double ElecTemp[], double VibTemp[], double RotTemp[], double mass, double CellTemp)
 {
 
   // FUNCTION FOR CALCULATING PARTITION FUNCTION FOR MOLECULES
@@ -435,10 +443,14 @@ double ReactTCE::Partition(int nvibmode, int nrotmode, int sym, int edegen, doub
   static const double MY_PI  = 3.14159265358979323846; // pi
 
   qtrans = pow(((2*MY_PI*mass*kb*CellTemp)/pow(h,2)),1.5);
-  
+
+  if (nrotmode>0 && RotTemp[0]==0) {
+    error->one(FLERR,"Species rotational data not read");
+  }
+
   if (nrotmode == 0) {
     qrot = 1.0;
-  }else if (nrotmode == 2) {
+  } else if (nrotmode == 2) {
     qrot = CellTemp/((double)sym*RotTemp[0]);
   } else {
     qrot = (1/(double)sym)*pow(MY_PI,.5)*pow((pow(CellTemp,3)/(RotTemp[0]*RotTemp[1]*RotTemp[2])),.5);
@@ -451,7 +463,16 @@ double ReactTCE::Partition(int nvibmode, int nrotmode, int sym, int edegen, doub
     }
   } 
 
-  qel = (double)edegen;
+  //qel = (double)edegen;
+  qel = 0.0;
+  if (edegen[0]==0) {
+    error->one(FLERR,"Species electronic data not read");
+  }
+  for (int i = 0; i < nelmode; i++) {
+    ElecTemp[i] *= 1.42879; //Convert to K
+    if ((ElecTemp[i]) > (10*CellTemp)) break; //Check to improve computational time    
+    qel += ((double)edegen[i])*exp(-(ElecTemp[i])/(CellTemp));
+  }
   //std::cout << "Rot Temps: " << RotTemp[0] << " " << RotTemp[1] << " " << RotTemp[2] << std::endl;
   //std::cout << qtrans << " " << qrot << " " << qvib << " " << qel << std::endl;
   q = qtrans*qrot*qvib*qel; 

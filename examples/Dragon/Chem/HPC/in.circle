@@ -1,0 +1,114 @@
+################################################################################
+# 2d flow around a circle
+#
+# Note:
+#  - The "comm/sort” option to the “global” command is used to match MPI runs.
+#  - The “twopass” option is used to match Kokkos runs.
+# The "comm/sort" and "twopass" options should not be used for production runs.
+
+
+# tested configs:
+# original code with N/O atoms at 5000 m/s - clear shock no bump
+# original code with CH4 (smooth) at 5000 m/s - clear shock no bump
+# original code with CH4 (discrete) at 2500 m/s - 
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code - 
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code and Modififed Chemistry w/ reactions disabled - 
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code and Modififed Chemistry w/ reactions enabled - 
+################################################################################
+
+seed	    	    12345
+dimension   	    2
+global              gridcut 0.0 comm/sort yes
+
+boundary	    o ao p
+
+create_box  	    -1 4 0 5 -0.5e-5 0.5e-5
+create_grid 	    500 500 1 
+balance_grid        rcb cell
+global		    fnum 1e18 weight cell volume
+
+species		    Titan.species N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar vibfile Titan.vib rotfile Titan.rot elecfile Titan.elec
+mixture		    air N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar vstream 6167.0 0.0 0.0 temp 179 nrho 1.347e20
+mixture             air N2 frac 0.97
+mixture             air CH4 frac 0.023
+mixture             air Ar frac 0.007
+
+read_surf           data.dragonfly
+
+fix 7 balance 500 1.1 rcb time
+collide             vss air Titan.vss
+collide_modify      vremax 1000 yes
+collide_modify      vibrate discrete
+fix                 vib vibmode
+fix		    in emit/face air xlo yhi twopass
+compute test thermal/grid all air temp press
+
+compute             temp temp
+compute 	    particles count species
+compute frac grid all species nfrac
+compute mfrac grid all species massfrac
+compute trot grid all species trot
+compute tvib tvib/grid all air
+compute tviball tvib/grid all species
+compute thermal thermal/grid all species temp
+compute vel grid all air trot n nrho massrho u v w
+compute dim property/grid all xlo xhi ylo yhi vol
+
+react        tce Titan.tce
+react_modify rboost 1.0
+react_modify partial_energy no c_test[1] 
+react_modify partition yes
+
+
+compute 1 grid all air nrho temp
+fix 1 ave/grid all 1 150 150 c_1[1] c_test[1]
+fix 2 ave/grid all 1 200 200 c_1[*] c_test[1]
+compute 2 lambda/grid f_1[1] f_1[2] N2 kall
+compute MFP lambda/grid f_2[1] f_2[2] N2 kall
+
+
+compute 3 surf all all n press shx shy shz ke erot evib etot press
+compute 4 surf all air n press shx shy shz ke erot evib etot press
+
+fix 4 ave/surf all 1 100 250 c_3[*]
+fix 5 ave/surf all 1 100 250 c_4[*]
+fix rad ave/surf all 1 250 250 c_3[9]
+
+fix                 stemp surf/temp all 250 f_rad 179 0.9 temperature
+surf_collide        1 diffuse s_temperature 1.0
+surf_modify         all collide 1
+
+dump 1 surf all 250 TitanGen.surf id f_5[*]
+dump 1a surf all 250 TitanSpecies.surf id f_4[*]
+dump 1b surf all 250 SurfTemp.surf id s_temperature
+
+fix 8 ave/grid all 1 200 200 c_test[*] c_tvib[*] c_vel[*] c_dim[*] c_frac[*] c_mfrac[*] c_thermal[*] c_trot[*] c_tviball[*]
+dump 75 grid all 2000 Titanavg.grid id f_8[*] c_MFP[*] 
+compute surftot reduce sum f_5[9]
+compute surfmax reduce max f_5[9]
+
+
+
+#dump 5 grid all 5000 tmp.quick c_2[*] c_thermal[1] c_vel[1] c_tvib[1] c_thermal[2] c_vel[*]
+timestep 	    0.000001
+
+#dump                7 image all 1000 partchem.*.ppm type type pdiam 0.1 &
+#                    surf proc 0.01 size 512 512 zoom 1.75
+#dump_modify	    2 pad 4
+
+dump                4 image all 1000 Pressure20RefAdapt2chem.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75 grid c_test[2] particle no
+dump_modify	    4 pad 4 
+dump_modify         4 cmap grid 0.0 400.0 cf 0.0 5 min blue 0.25 green 0.5 yellow 0.75 orange max red boxcolor black
+
+dump                6 image all 1000 CellTemp20RefAdapt2chem.*.ppm type type pdiam 0.1 &
+                    surf proc 0.01 size 512 512 zoom 1.75 grid c_test[1] particle no
+dump_modify	    6 pad 4
+dump_modify         6 cmap grid 150.0 20000.0 cf 0.0 5 min blue 0.25 green 0.5 yellow 0.75 orange max red boxcolor black
+
+stats		    250
+stats_modify        flush yes
+stats_style	    step cpu np nattempt ncoll nscoll nscheck ngrid nreact c_surftot c_surfmax
+
+run 		    20000
+

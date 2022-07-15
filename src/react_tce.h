@@ -47,7 +47,7 @@ class ReactTCE : public ReactBird {
                  double Evib);
 
 
-  double Partition(int nvibmode, int nrotmode, int sym, int edegen, double VibTemp[], double RotTemp[], double mass, double CellTemp);
+  double Partition(int nvibmode, int nrotmode, int nelmode, int sym, int edegen[], double ElecTemp[], double VibTemp[], double RotTemp[], double mass, double CellTemp);
 };
 
 }

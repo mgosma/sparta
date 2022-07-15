@@ -26,6 +26,7 @@ class Particle : protected Pointers {
   int sorted;               // 1 if particles are sorted by grid cell
 
   enum{MAXVIBMODE=40};       // increase value if species need more vib modes
+  enum{MAXELECMODE=50};       // increase value if species need more vib modes
 
   struct Species {          // info on each particle species, read from file
     char id[16];            // species ID
@@ -39,8 +40,10 @@ class Particle : protected Pointers {
     double vibtemp[MAXVIBMODE];   // vibrational temperature(s)
     double vibrel[MAXVIBMODE];    // inverse vibrational relaxation number(s)
     int vibdegen[MAXVIBMODE];     // vibrational mode degeneracies
+    double electemp[MAXELECMODE];   // electronic temperature(s)
+    int elecdeg[MAXELECMODE];    // electronic mode degeneracy
     int rotdof,vibdof;      // rotational/vibrational DOF
-    int nrottemp,nvibmode;  // # of rotational/vibrational temps/modes defined
+    int nrottemp,nvibmode,nelecmode;  // # of rotational/vibrational temps/modes defined
     int internaldof;        // 1 if either rotdof or vibdof != 0
     int vibdiscrete_read;   // 1 if species.vib file read for this species
     double magmoment;       // magnetic moment, set by species_modify command
@@ -62,9 +65,18 @@ class Particle : protected Pointers {
     int nmode;
   };
 
+
+  struct ElecFile {          // extra vibration info read from elecfile
+    char id[16];
+    double elecdeg[MAXELECMODE];
+    double electemp[MAXELECMODE];
+    int nmode;
+  };
+
   Species *species;         // list of particle species info
   int nspecies;             // # of defined species
   int maxvibmode;           // max vibmode of any species (mode = dof/2)
+  int maxelecmode;          
 
   class Mixture **mixture;
   int nmixture;
@@ -201,6 +213,7 @@ class Particle : protected Pointers {
   Species *filespecies;     // list of species read from file
   RotFile *filerot;         // list of species rotation info read from file
   VibFile *filevib;         // list of species vibration info read from file
+  ElecFile *fileelec;         // list of species electronic info read from file
 
   class RanKnuth *wrandom;   // RNG for particle weighting
 
@@ -231,6 +244,7 @@ class Particle : protected Pointers {
   void read_species_file();
   void read_rotation_file();
   void read_vibration_file();
+  void read_electronic_file();
   int wordcount(char *, char **);
 };
 

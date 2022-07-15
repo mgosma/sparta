@@ -29,6 +29,9 @@
 #include "error.h"
 #include "fix_vibmode.h"
 
+//#include <iostream>
+//using namespace std;
+
 using namespace SPARTA_NS;
 
 enum{PKEEP,PINSERT,PDONE,PDISCARD,PENTRY,PEXIT,PSURF};  // several files
@@ -59,7 +62,7 @@ Particle::Particle(SPARTA *sparta) : Pointers(sparta)
   nspecies = maxspecies = 0;
   species = NULL;
   maxvibmode = 0;
-
+  maxelecmode = 0;
   //maxgrid = 0;
   //cellcount = NULL;
   //first = NULL;
@@ -825,11 +828,12 @@ void Particle::add_species(int narg, char **arg)
 
   int rotindex = 0;
   int vibindex = 0;
+  int elecindex = 0;
 
   while (iarg < narg) {
     if (strcmp(arg[iarg],"rotfile") == 0) {
       // not yet supported
-      error->all(FLERR,"Illegal species command");
+      //error->all(FLERR,"Illegal species command");
       if (iarg+2 > narg) error->all(FLERR,"Illegal species command");
       if (rotindex)
         error->all(FLERR,"Species command can only use a single rotfile");
@@ -840,6 +844,12 @@ void Particle::add_species(int narg, char **arg)
       if (vibindex)
         error->all(FLERR,"Species command can only use a single vibfile");
       vibindex = iarg+1;
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"elecfile") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal species command");
+      if (elecindex)
+        error->all(FLERR,"Species command can only use a single elecfile");
+      elecindex = iarg+1;
       iarg += 2;
     } else error->all(FLERR,"Illegal species command");
   }
@@ -893,6 +903,52 @@ void Particle::add_species(int narg, char **arg)
     memory->sfree(filerot);
   }
 
+  // read electronic species file and setup per-species params
+
+  if (elecindex) {
+    if (me == 0) {
+      fp = fopen(arg[elecindex],"r");
+      if (fp == NULL) {
+        char str[128];
+        sprintf(str,"Cannot open electronic file %s",arg[elecindex]);
+        error->one(FLERR,str);
+      }
+    }
+
+    nfile = maxfile = 0;
+    fileelec = NULL;
+
+    if (me == 0) read_electronic_file();
+    MPI_Bcast(&nfile,1,MPI_INT,0,world);
+    if (comm->me) {
+      fileelec = (ElecFile *)
+        memory->smalloc(nfile*sizeof(ElecFile),"particle:fileelec");
+    }
+    MPI_Bcast(fileelec,nfile*sizeof(VibFile),MPI_BYTE,0,world);
+
+    for (i = 0; i < newspecies; i++) {
+      int ii = nspecies_original + i;
+
+      for (j = 0; j < nfile; j++)
+        if (strcmp(names[i],fileelec[j].id) == 0) break;
+      if (j == nfile) {
+        error->all(FLERR,"Species ID does not appear in electronic file");
+      }
+
+      int nmode = fileelec[j].nmode;
+
+      species[ii].nelecmode = nmode;
+      for (k = 0; k < nmode; k++) {
+        species[ii].elecdeg[k] = fileelec[j].elecdeg[k];
+        species[ii].electemp[k] = fileelec[j].electemp[k];
+      }
+
+      maxelecmode = MAX(maxelecmode,species[ii].nelecmode);
+    }
+
+    memory->sfree(fileelec);
+  }
+
   // read vibrational species file and setup per-species params
 
   if (vibindex) {
@@ -944,7 +1000,6 @@ void Particle::add_species(int narg, char **arg)
 
     memory->sfree(filevib);
   }
-
   // clean up
 
   delete [] names;
@@ -1256,7 +1311,7 @@ void Particle::read_rotation_file()
 }
 
 /* ----------------------------------------------------------------------
-   read list of extra rotation info in vibration file
+   read list of extra vibration info in vibration file
    store info in filevib and nfile
    only invoked by proc 0
 ------------------------------------------------------------------------- */
@@ -1306,6 +1361,65 @@ void Particle::read_vibration_file()
       vsp->vibtemp[i] = atof(words[j++]);
       vsp->vibrel[i] = atof(words[j++]);
       vsp->vibdegen[i] = atoi(words[j++]);
+    }
+    nfile++;
+  }
+
+  delete [] words;
+
+  fclose(fp);
+}
+
+/* ----------------------------------------------------------------------
+   read list of extra electronic info in electronic file
+   store info in fileelec and nfile
+   only invoked by proc 0
+------------------------------------------------------------------------- */
+
+void Particle::read_electronic_file()
+{
+  // read file line by line
+  // skip blank lines or comment lines starting with '#'
+  // all other lines can have up to NWORDS
+
+  int NWORDS = 2 + 2*MAXELECMODE;
+  char **words = new char*[NWORDS];
+  char line[MAXLINE],copy[MAXLINE];
+
+  while (fgets(line,MAXLINE,fp)) {
+    int pre = strspn(line," \t\n\r");
+    if (pre == strlen(line) || line[pre] == '#') continue;
+
+    strcpy(copy,line);
+    int nwords = wordcount(copy,NULL);
+    if (nwords > NWORDS)
+      error->one(FLERR,"Incorrect line format in electronic file");
+
+    if (nfile == maxfile) {
+      maxfile += DELTASPECIES;
+      fileelec = (ElecFile *)
+	memory->srealloc(fileelec,maxfile*sizeof(ElecFile),
+			 "particle:fileelec");
+      memset(&fileelec[nfile],0,(maxfile-nfile)*sizeof(ElecFile));
+    }
+
+    nwords = wordcount(line,words);
+    ElecFile *esp = &fileelec[nfile];
+
+    if (strlen(words[0]) + 1 > 16)
+      error->one(FLERR,"Invalid species ID in electronic file");
+    strcpy(esp->id,words[0]);
+
+    esp->nmode = atoi(words[1]);
+    if (esp->nmode < 1 || esp->nmode > MAXELECMODE)
+      error->one(FLERR,"Invalid N count in electronic file");
+    if (nwords != 2 + 2*esp->nmode)
+      error->one(FLERR,"Incorrect line format in electronic file");
+
+    int j = 2;
+    for (int i = 0; i < esp->nmode; i++) {
+      esp->elecdeg[i] = atof(words[j++]);
+      esp->electemp[i] = atof(words[j++]);
     }
     nfile++;
   }
