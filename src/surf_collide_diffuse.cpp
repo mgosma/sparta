@@ -349,13 +349,11 @@ void SurfCollideDiffuse::diffuse(Particle::OnePart *p, double *norm, int jsurf)
     // initialize rot/vib energy
 
     p->erot = particle->erot(ispecies,twall,random);
-    //if (collide && collide->vibstyle == DISCRETE) {
+    p->evib = particle->evib(ispecies,twall,random);
+    /*
     int isp = p->ispecies;
     int nmode = particle->species[isp].nvibmode;
-    int index_vibmode = particle->find_custom((char *) "vibmode");
-    int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
-    int pindex = p - particle->particles;
-    //cout << "fix evib called" << endl;
+
     // no modes, just return
 
     if (nmode == 0) return;
@@ -365,17 +363,16 @@ void SurfCollideDiffuse::diffuse(Particle::OnePart *p, double *norm, int jsurf)
 
     if (nmode == 1) {
       p->evib = particle->evib(ispecies,twall,random);
-      vibmode[pindex][0] = static_cast<int> 
-        (p->evib / update->boltz / 
-         particle->species[isp].vibtemp[0]);
-      return;
     }
 
     // loop over modes and populate each
     // accumlate new total evib
     else {
-    int ivib;
-    double evib = 0.0;
+      int ivib;
+      double evib = 0.0;
+      int index_vibmode = particle->find_custom((char *) "vibmode");
+      int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
+      int pindex = p - particle->particles;
       for (int imode = 0; imode < nmode; imode++) {
         ivib = static_cast<int> (-log(random->uniform()) * twall /
 	                     particle->species[isp].vibtemp[imode]);
@@ -384,6 +381,7 @@ void SurfCollideDiffuse::diffuse(Particle::OnePart *p, double *norm, int jsurf)
       }
       p->evib = evib;
     }
+    */
   }
 }
 

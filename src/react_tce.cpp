@@ -25,8 +25,8 @@
 #include "compute.h"
 
 using namespace SPARTA_NS;
-#include <iostream>
-using namespace std;
+//#include <iostream>
+//using namespace std;
 enum{NONE,DISCRETE,SMOOTH};
 enum{DISSOCIATION,EXCHANGE,IONIZATION,RECOMBINATION,REVERSE_EXCHANGE};   // other files
 
@@ -130,8 +130,8 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 
             //cout << zi << " " << ievib << " " << zj << " " << jevib << endl;
 	    if (isnan(zi) || isnan(zj) || zi<0 || zj<0) {
-              cout << z << " " << (2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 )) << " " << (2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 )) << " " << temp[icell] << " " << particle->species[isp].vibtemp[0] << endl;
-              cout << zi << " " << zj << " " << ievib << " " << jevib << endl;
+              //cout << z << " " << (2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 )) << " " << (2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 )) << " " << temp[icell] << " " << particle->species[isp].vibtemp[0] << endl;
+              //cout << zi << " " << zj << " " << ievib << " " << jevib << endl;
               error->all(FLERR,"Root-Finding Error");
 	    }
             z = pre_ave_rotdof + 0.5 * (zi+zj);
@@ -201,9 +201,9 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 
 
         if (isnan(react_prob)) {   
-           cout << Qi << " " << Qj << " " << Qk << " " << Ql << endl;
-           cout << zi << " " << zj << endl;
-           cout << icell << " " << temp[icell] << " " << sizeof(temp)/sizeof(temp[0]) << endl;
+           //cout << Qi << " " << Qj << " " << Qk << " " << Ql << endl;
+           //cout << zi << " " << zj << endl;
+           //cout << icell << " " << temp[icell] << " " << sizeof(temp)/sizeof(temp[0]) << endl;
            error->all(FLERR,"Reaction Test Error");
         }
         break;
@@ -270,7 +270,7 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
                 //cout << r->coeff[0] << " " << r->coeff[1] << " " << r->coeff[2] << " " << r->coeff[3] << " " << r->coeff[4] << " " << r->coeff[7] << " " << endl;
 		//cout << Kb << " " << Rcoll << " " << recomb_density * Kb / Rcoll << " " << random_prob << " " << Qreact << " "  << pow(temp[icell],r->coeff[3]) << " " << temp[icell] <<endl;
 		if (isnan(react_prob)) { 
-		   cout << "Partition error: " << Qi << " " << Qj << " " << Qk << " " << temp[icell] << endl;
+		   //cout << "Partition error: " << Qi << " " << Qj << " " << Qk << " " << temp[icell] << endl;
 		   error->all(FLERR,"Reaction Test Error");
 		}
         }
