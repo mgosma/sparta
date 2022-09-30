@@ -28,7 +28,8 @@
 #include "math_const.h"
 #include "memory.h"
 #include "error.h"
-
+//#include <iostream>
+//using namespace std;
 using namespace SPARTA_NS;
 using namespace MathConst;
 
@@ -192,6 +193,8 @@ int CollideVSS::test_collision(int icell, int igroup, int jgroup,
   double *vj = jp->v;
   int ispecies = ip->ispecies;
   int jspecies = jp->ispecies;
+  //cout << ispecies << endl;
+  //cout << jspecies << endl;
   double du  = vi[0] - vj[0];
   double dv  = vi[1] - vj[1];
   double dw  = vi[2] - vj[2];
@@ -200,9 +203,13 @@ int CollideVSS::test_collision(int icell, int igroup, int jgroup,
 
   // although the vremax is calculated for the group,
   // the individual collisions calculated species dependent vre
-
+  //if (vro == 0) return 0;
   double vre = vro*prefactor[ispecies][jspecies];
   vremax[icell][igroup][jgroup] = MAX(vre,vremax[icell][igroup][jgroup]);
+  if ((vre/vremax[icell][igroup][jgroup]) > .05) {
+    //cout << vre << " " << vro << " " << ispecies << " " << jspecies << endl;
+    //cout << vre/vremax[icell][igroup][jgroup] << endl;
+  }
   if (vre/vremax[icell][igroup][jgroup] < random->uniform()) return 0;
   precoln.vr2 = vr2;
   return 1;
@@ -311,11 +318,15 @@ int CollideVSS::perform_collision(Particle::OnePart *&ip,
   // if gas-phase chemistry defined, attempt and perform reaction
   // if a 3rd particle is created, its kspecies >= 0 is returned
   // if 2nd particle is removed, its jspecies is set to -1
-
-  if (react)
+  //cout << ip->ispecies << " " << jp->ispecies << endl;
+  if (react) {
+    //cout << "Performing reaction" << endl;
     reactflag = react->attempt(ip,jp,
                                precoln.etrans,precoln.erot,
                                precoln.evib,postcoln.etotal,kspecies);
+    //cout << "Reaction complete" << endl;
+  }
+  //cout << "possible reactions occured" << endl;
   else reactflag = 0;
 
   // repartition energy and perform velocity scattering for I,J,K particles
@@ -333,7 +344,7 @@ int CollideVSS::perform_collision(Particle::OnePart *&ip,
 
     if (kspecies >= 0) {
       int id = MAXSMALLINT*random->uniform();
-
+      
       Particle::OnePart *particles = particle->particles;
       memcpy(x,ip->x,3*sizeof(double));
       memcpy(v,ip->v,3*sizeof(double));
@@ -345,7 +356,9 @@ int CollideVSS::perform_collision(Particle::OnePart *&ip,
       }
 
       kp = &particle->particles[particle->nlocal-1];
+      //cout << "Diss energy exchange" << endl;
       EEXCHANGE_ReactingEDisposal(ip,jp,kp);
+      //cout << "Diss exchange complete" << endl;
       SCATTER_ThreeBodyScattering(ip,jp,kp);
 
     // remove 2nd J particle if recombination reaction removed it
@@ -366,7 +379,7 @@ int CollideVSS::perform_collision(Particle::OnePart *&ip,
 
       jp = NULL;
       p3 = react->recomb_part3;
-
+      //cout << "React third body" << p3->ispecies << endl; 
       // properly account for 3rd body energy with another call to setup_collision()
       // it needs relative velocity of recombined species and 3rd body
 
@@ -892,6 +905,9 @@ void CollideVSS::EEXCHANGE_ReactingEDisposal(Particle::OnePart *ip,
   double AdjustFactor = 0.99999999;
 
   if (!kp) {
+    //cout << "1 " << ip->ispecies << endl;
+    //cout << jp->ispecies << endl;
+    //cout << ip->erot << " " << jp->erot << endl;
     ip->erot = 0.0;
     jp->erot = 0.0;
     ip->evib = 0.0;
@@ -900,6 +916,10 @@ void CollideVSS::EEXCHANGE_ReactingEDisposal(Particle::OnePart *ip,
     aveomega =  params[ip->ispecies][jp->ispecies].omega; 
     //cout << "2 species" << endl;
   } else {
+    //cout << "1 " << ip->ispecies << endl;
+    //cout << kp->ispecies << endl;
+    //cout << jp->ispecies << endl;
+    //cout << ip->erot << " " << jp->erot << " " << kp->erot << endl;
     ip->erot = 0.0;
     jp->erot = 0.0;
     kp->erot = 0.0;
@@ -1192,9 +1212,11 @@ void CollideVSS::read_param_file(char *fname)
     if (isp < 0) continue;
 
     jsp = particle->find_species(words[1]);
-
+    
     // if we don't match a species with second word, but it's not a number,
     // skip the line (it involves a species we aren't using)
+
+    //cout << isp << " " << jsp << endl;
     if ( jsp < 0 &&  !(atof(words[1]) > 0) ) continue;
 
     if (jsp < 0 ) {

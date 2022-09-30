@@ -459,7 +459,6 @@ void ReactBird::ambi_check()
 
     // dissociation must match one of these orders
     // D: AB + e -> A + e + B
-    // D: AB + Ion -> A + Ion + B
     // D: AB+ + e -> A+ + e + B
 
     flag = 1;
@@ -469,9 +468,6 @@ void ReactBird::ambi_check()
         if (ions[r->reactants[0]] == 0 && r->reactants[1] == especies &&
             ions[r->products[0]] == 0 && r->products[1] == especies &&
             ions[r->products[2]] == 0) flag = 0;
-        else if (ions[r->reactants[0]] == 0 && ions[r->reactants[1]] == 1 &&
-                 ions[r->products[0]] == 0 && ions[r->products[1]] == 1 &&
-                 ions[r->products[2]] == 0) flag = 0;
         else if (ions[r->reactants[0]] == 1 && r->reactants[1] == especies &&
                  ions[r->products[0]] == 1 && r->products[1] == especies &&
                  ions[r->products[2]] == 0) flag = 0;
@@ -519,9 +515,6 @@ void ReactBird::ambi_check()
     // R: A+ + e -> A
     // R: A + B+ -> AB+
     // R: A+ + B -> AB+
-    // R: A + B -> AB + e
-    // R: A + B -> AB + Ion
-
 
     else if (r->type == RECOMBINATION) {
       if (r->nreactant == 2 && r->nproduct == 1) {
@@ -531,9 +524,6 @@ void ReactBird::ambi_check()
             ions[r->products[0]] == 1) flag = 0;
         else if (ions[r->reactants[0]] == 1 && ions[r->reactants[1]] == 0 &&
             ions[r->products[0]] == 1) flag = 0;
-      }
-      if (r->nreactant == 2 && r->nproduct == 2) {
-        if (r->products[1] == especies || ions[r->products[1]] == 1) flag = 0;
       }
     }
 

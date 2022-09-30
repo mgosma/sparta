@@ -108,8 +108,10 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
        else if (collide->vibstyle == DISCRETE) {             
             inmode = species[isp].nvibmode;
             jnmode = species[jsp].nvibmode;
+
 	    //Cell-Averaged z for diatomic molecules (note, this should probably be Tvib instead of Tcell)
-            if (inmode == 1 && temp[icell] > 300.0) zi = 2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
+            if (inmode == 0) zi=0.0;
+            else if (inmode == 1 && temp[icell] > 300.0) zi = 2. * (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[isp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
             else if (inmode > 1) {
 	      if (ievib < 1e-26 ) zi = 0.0; //Low Energy Cut-Off to prevent nan solutions to newtonTvib
               //Instantaneous T for polyatomic
@@ -119,8 +121,9 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
               }
 	    }
 
+            if (jnmode == 0) zj=0.0;
             if (jnmode == 1 && temp[icell] > 300.0) zj = 2. * (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) * log(1.0 / (1 / (exp(particle->species[jsp].vibtemp[0] / temp[icell]) - 1)) + 1.0 ); 
-            else if (inmode > 1) {
+            else if (jnmode > 1) {
 	      if (jevib < 1e-26) zj = 0.0;
               else {
                 jTvib = newtonTvib(jnmode,jevib,particle->species[jsp].vibtemp,3000,1e-4,1000);
@@ -137,7 +140,7 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
             z = pre_ave_rotdof + 0.5 * (zi+zj);
             
        }
-       //cout << z << " " << zi << " " << zj << " " << inmode << " " << jnmode << endl;
+       //cout << z << " " << zi << " " << zj << " " << inmode << " " << jnmode << " " << ievib << " " <<jevib << endl;
     }
 
 
@@ -155,6 +158,7 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
         react_prob += r->coeff[2] * tgamma(z+2.5-r->coeff[5]) / MAX(1.0e-6,tgamma(z+r->coeff[3]+1.5)) *
           pow(ecc-r->coeff[1],r->coeff[3]-1+r->coeff[5]) * 
           pow(1.0-r->coeff[1]/ecc,z+1.5-r->coeff[5]);
+        //cout << react_prob << endl;
         if (isnan(react_prob)) { 
            //cout << zi << " " << zj << endl;
            error->all(FLERR,"Reaction Test Error");
@@ -301,7 +305,8 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 
     if (react_prob > random_prob) {
       tally_reactions[list[i]]++;
-
+      //cout << ip->ispecies << " " << jp->ispecies << endl;
+      //cout << " -> " << r->products[0] << " " << r->products[1] << endl;
       if (!computeChemRates) {
           ip->ispecies = r->products[0];
 
@@ -311,22 +316,24 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
           case EXCHANGE:
           case REVERSE_EXCHANGE:
             {
+              //cout << "non-Recomb Reaction " << r->coeff[4] << " " << r->products[1] << " " << pre_etotal << endl;
               jp->ispecies = r->products[1];
               break;
             }
           case RECOMBINATION:
             {
               // always destroy 2nd reactant species
-
+              //cout << "Recomb Reaction " << r->coeff[4] << endl;
               jp->ispecies = -1;
               break;
             }
           }
 
           if (r->nproduct > 2) kspecies = r->products[2];
-          else kspecies = -1;
+          else kspecies = -1; 
 
           post_etotal = pre_etotal + r->coeff[4];
+          //cout << "Recob product: " << r->products[0] << " Energy: " << post_etotal << endl;
       }
 
       return 1;

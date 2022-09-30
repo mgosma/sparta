@@ -28,7 +28,8 @@
 #include "random_knuth.h"
 #include "memory.h"
 #include "error.h"
-
+//#include <iostream>
+//using namespace std;
 using namespace SPARTA_NS;
 
 enum{NONE,DISCRETE,SMOOTH};       // several files  (NOTE: change order)
@@ -926,6 +927,7 @@ void Collide::collisions_one_ambipolar()
         memcpy(ep->v,velambi[plist[i]],3*sizeof(double));
         ep->ispecies = ambispecies;
         nelectron++;
+        //cout << "Original: " << nelectron << endl;
       }
     }
 
@@ -999,6 +1001,7 @@ void Collide::collisions_one_ambipolar()
           k = np * random->uniform();
           while (k == i || k == j) k = np * random->uniform();
           react->recomb_part3 = &particles[plist[k]];
+          //cout << "third body: " << (&particles[plist[k]])->ispecies << endl;
           react->recomb_species = react->recomb_part3->ispecies;
           react->recomb_density = np * update->fnum / volume;
         }
@@ -1010,10 +1013,24 @@ void Collide::collisions_one_ambipolar()
 
       ispecies = ipart->ispecies;
       jspecies = jpart->ispecies;
+      //cout << "React Species " << ispecies << " " << jspecies << endl;
+      //if (kpart) cout << "third body: " << kpart->ispecies << endl;
       setup_collision(ipart,jpart);
+      //cout << "ambipolar reaction called" << endl;
+      //cout << np << " " << i << " " << j << endl;
+      //cout << ipart << " " << jpart << endl;
+      //cout << ispecies << " " << jspecies << endl;
       reactflag = perform_collision(ipart,jpart,kpart);
+      //cout << "ambipolar reaction complete" << endl;
+      //cout << "Checking new products" << endl;
+      //cout << ipart->ispecies << " " << jpart->ispecies << endl;
       ncollide_one++;
-      if (reactflag) nreact_one++;
+      if (reactflag) {
+        nreact_one++;
+        //cout << "React 1st Product " << ipart->ispecies << endl;
+        //if (jpart) cout << "React 2nd Product " << jpart->ispecies << endl;
+        //if (kpart) cout << "React 3rd Product " << kpart->ispecies << endl;
+      }
       else continue;
 
       // reset ambipolar ion flags due to collision
@@ -1143,11 +1160,16 @@ void Collide::collisions_one_ambipolar()
 	  ep = &elist[melectron];
 	  memcpy(velambi[i],ep->v,3*sizeof(double));
 	}
+        //cout << (&particles[i])->ispecies << " ";
 	melectron++;
       }
     }
-    if (melectron != nelectron)
+    //cout << endl;
+    if (melectron != nelectron) {
+      //cout << melectron << " " << nelectron << endl;
       error->one(FLERR,"Collisions in cell did not conserve electron count");
+    }
+    //cout << melectron << " " << nelectron << endl;
   }
 }
 
