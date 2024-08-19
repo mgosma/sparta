@@ -45,7 +45,10 @@ React::React(SPARTA *sparta, int, char **arg) : Pointers(sparta)
   recomb_boost_inverse = 0.001;
   computeChemRates = 0;
   partition = 0;
+  TCELL = 0;
+  isothermal = 0;
   partialEnergy = 1;
+  thermo = 0;
   id_temp = NULL;
   temp = NULL;
   nglocal = 0;
@@ -100,6 +103,24 @@ void React::modify_params(int narg, char **arg)
         if (iarg+2 > narg) error->all(FLERR,"Illegal react_modify command");
         if (strcmp(arg[iarg+1],"yes") == 0) partition = 1;
         else if (strcmp(arg[iarg+1],"no") == 0) partition = 0;
+        else error->all(FLERR,"Illegal react_modify command");
+        iarg += 2;
+    } else if (strcmp(arg[iarg],"thermo") == 0) {
+        if (iarg+2 > narg) error->all(FLERR,"Illegal react_modify command");
+        if (strcmp(arg[iarg+1],"yes") == 0) thermo = 1;
+        else if (strcmp(arg[iarg+1],"no") == 0) thermo = 0;
+        else error->all(FLERR,"Illegal react_modify command");
+        iarg += 2;
+    } else if (strcmp(arg[iarg],"isothermal") == 0) {
+        if (iarg+2 > narg) error->all(FLERR,"Illegal react_modify command");
+        if (strcmp(arg[iarg+1],"yes") == 0) isothermal = 1;
+        else if (strcmp(arg[iarg+1],"no") == 0) isothermal = 0;
+        else error->all(FLERR,"Illegal react_modify command");
+        iarg += 2;
+    } else if (strcmp(arg[iarg],"tcell") == 0) {
+        if (iarg+2 > narg) error->all(FLERR,"Illegal react_modify command");
+        if (strcmp(arg[iarg+1],"yes") == 0) TCELL = 1;
+        else if (strcmp(arg[iarg+1],"no") == 0) TCELL = 0;
         else error->all(FLERR,"Illegal react_modify command");
         iarg += 2;
     } else if (strcmp(arg[iarg],"partial_energy") == 0) {

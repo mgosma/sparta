@@ -35,8 +35,9 @@ class SurfReactAdsorb : public SurfReact {
   char *reactionID(int);
   int match_reactant(char *, int);
   int match_product(char *, int);
-
+  int dynamicflag;          // 1 if any param is dynamically updated
   void tally_update();
+  void dynamic();
 
  private:
   int me,nprocs;
@@ -45,6 +46,12 @@ class SurfReactAdsorb : public SurfReact {
   int nsync;                        // synchronize surf state
                                     // every this many steps
   double twall;                     // temperature of face or surf
+
+  int tmode;                 // Twall is NUMERIC,VARIABLE,CUSTOM
+  char *tstr;                // temperature variable name (NULL if constant)
+  int tvar;                  // index of equal-style variable
+  double *tvector;           // custom per-surf temperature vector
+
   double max_cover;
   int this_index;                   // index of this surf reaction model
                                     // in Surf list of all reaction models

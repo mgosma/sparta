@@ -32,7 +32,7 @@
 using namespace SPARTA_NS;
 using namespace MathConst;
 
-enum{DISSOCIATION,EXCHANGE,IONIZATION,RECOMBINATION,REVERSE_EXCHANGE};  // other react files
+enum{DISSOCIATION,EXCHANGE,IONIZATION,RECOMBINATION,REVERSE_EXCHANGE,REVERSE_DISSOCIATION,REVERSE_RECOMBINATION};  // other react files
 enum{ARRHENIUS,QUANTUM};                               // other react files
 
 #define MAXREACTANT 2
@@ -118,7 +118,7 @@ void ReactBird::init()
     OneReaction *r = &rlist[m];
     r->active = 1;
 
-    if (r->type == RECOMBINATION && recombflag_user == 0) {
+    if ((r->type == RECOMBINATION || r->type == REVERSE_RECOMBINATION) && recombflag_user == 0) {
       r->active = 0;
       continue;
     }
@@ -137,7 +137,7 @@ void ReactBird::init()
 
         // special case: recombination reaction with 2nd product = atom/mol
 
-        if (r->type == RECOMBINATION && i == 1) {
+        if ((r->type == RECOMBINATION || r->type == REVERSE_RECOMBINATION) && i == 1) {
           if (strcmp(r->id_products[i],"atom") == 0) {
             r->products[i] = -1;
             continue;
@@ -248,7 +248,7 @@ void ReactBird::init()
 
     double c1 = MY_PIS*epsilon*r->coeff[2]/(2.0*sigma) *
       sqrt(mr/(2.0*update->boltz*tref)) *
-      pow(tref,1.0-omega)/pow(update->boltz,r->coeff[3]-1.0+omega); // *
+      pow(tref,1.0-omega);//pow(update->boltz,r->coeff[3]-1.0+omega); // *
 //      tgamma(z+2.5-omega) / MAX(1.0e-6,tgamma(z+r->coeff[3]+1.5));
     double c2 = r->coeff[3] - 1.0 + omega;
     r->coeff[7] = r->coeff[2];
@@ -297,7 +297,7 @@ void ReactBird::init()
   recombflag = 0;
   for (int m = 0; m < nlist; m++) {
     if (!rlist[m].active) continue;
-    if (rlist[m].type == RECOMBINATION) recombflag = 1;
+    if (rlist[m].type == RECOMBINATION || rlist[m].type == REVERSE_RECOMBINATION) recombflag = 1;
   }
 
   if (!recombflag) return;
@@ -315,7 +315,7 @@ void ReactBird::init()
       int *list = reactions[i][j].list;
       for (int m = 0; m < n; m++) {
         r = &rlist[list[m]];
-        if (r->type == RECOMBINATION) {
+        if (r->type == RECOMBINATION || r->type == REVERSE_RECOMBINATION) {
           nij++;
           break;
         }
@@ -338,7 +338,7 @@ void ReactBird::init()
         reactions[i][j].sp2recomb = NULL; // Needed for Kokkos
       for (int m = 0; m < n; m++) {
         r = &rlist[list[m]];
-        if (r->type == RECOMBINATION) {
+        if (r->type == RECOMBINATION || r->type == REVERSE_RECOMBINATION) {
           offset += nspecies;
           break;
         }
@@ -364,7 +364,7 @@ void ReactBird::init()
       for (int k = 0; k < nspecies; k++) {
         for (m = 0; m < n; m++) {
           r = &rlist[list[m]];
-          if (r->type != RECOMBINATION) continue;
+          if (r->type != RECOMBINATION && r->type != REVERSE_RECOMBINATION) continue;
           if (r->nproduct != 2 || r->products[1] < 0) continue;
           if (r->products[1] == k) {
             reactions[i][j].sp2recomb[k] = list[m];
@@ -375,7 +375,7 @@ void ReactBird::init()
 
         for (m = 0; m < n; m++) {
           r = &rlist[list[m]];
-          if (r->type != RECOMBINATION) continue;
+          if (r->type != RECOMBINATION && r->type != REVERSE_RECOMBINATION) continue;
           if (r->nproduct != 2 || r->products[1] >= 0) continue;
           if (r->products[1] == -1 && particle->species[k].vibdof == 0) {
             reactions[i][j].sp2recomb[k] = list[m];
@@ -390,7 +390,7 @@ void ReactBird::init()
 
         for (m = 0; m < n; m++) {
           r = &rlist[list[m]];
-          if (r->type != RECOMBINATION) continue;
+          if (r->type != RECOMBINATION && r->type != REVERSE_RECOMBINATION) continue;
           if (r->nproduct != 1) continue;
           reactions[i][j].sp2recomb[k] = list[m];
           break;
@@ -399,7 +399,7 @@ void ReactBird::init()
 
         for (m = 0; m < n; m++) {
           r = &rlist[list[m]];
-          if (r->type != RECOMBINATION) continue;
+          if (r->type != RECOMBINATION && r->type != REVERSE_RECOMBINATION) continue;
           reactions[i][j].sp2recomb[k] = -1;
           break;
         }
@@ -463,7 +463,7 @@ void ReactBird::ambi_check()
 
     flag = 1;
 
-    if (r->type == DISSOCIATION) {
+    if (r->type == DISSOCIATION || r->type == REVERSE_DISSOCIATION) {
       if (r->nreactant == 2 && r->nproduct == 3) {
         if (ions[r->reactants[0]] == 0 && r->reactants[1] == especies &&
             ions[r->products[0]] == 0 && r->products[1] == especies &&
@@ -516,7 +516,7 @@ void ReactBird::ambi_check()
     // R: A + B+ -> AB+
     // R: A+ + B -> AB+
 
-    else if (r->type == RECOMBINATION) {
+    else if (r->type == RECOMBINATION || r->type == REVERSE_RECOMBINATION) {
       if (r->nreactant == 2 && r->nproduct == 1) {
         if (ions[r->reactants[0]] == 1 && r->reactants[1] == especies &&
             ions[r->products[0]] == 0) flag = 0;
@@ -659,6 +659,8 @@ void ReactBird::readfile(char *fname)
     else if (word[0] == 'I' || word[0] == 'i') r->type = IONIZATION;
     else if (word[0] == 'R' || word[0] == 'r') r->type = RECOMBINATION;
     else if (word[0] == 'X' || word[0] == 'x') r->type = REVERSE_EXCHANGE;
+    else if (word[0] == 'Y' || word[0] == 'y') r->type = REVERSE_DISSOCIATION;
+    else if (word[0] == 'Z' || word[0] == 'z') r->type = REVERSE_RECOMBINATION;
     else {
       print_reaction(copy1,copy2);
       error->all(FLERR,"Invalid reaction type in file");
@@ -828,6 +830,8 @@ void ReactBird::print_reaction(OneReaction *r)
   else if (r->type == IONIZATION) type = 'I';
   else if (r->type == RECOMBINATION) type = 'R';
   else if (r->type == REVERSE_EXCHANGE) type = 'X';
+  else if (r->type == REVERSE_DISSOCIATION) type = 'Y';
+  else if (r->type == REVERSE_RECOMBINATION) type = 'Z';
 
   char style;
   if (r->style == ARRHENIUS) style = 'A';

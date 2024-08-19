@@ -113,6 +113,9 @@ class CollideVSS : public Collide {
                int nmax);
   double nizenkov_zvib(int nmode, double Tcol, double zeta, double VibT[]);
   double nizenkov_dzvib(int nmode, double Tcol, double zeta, double VibT[]);
+  double Erelax(int isp, int jsp, double iTemp, double jTemp);
+  double HSpec(double ThermoTemp[], double LowPoly[], double HighPoly[], double CellTemp, int index);
+  double dHSpec(double ThermoTemp[], double LowPoly[], double HighPoly[], double CellTemp);
 };
 
 }

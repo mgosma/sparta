@@ -1,0 +1,4 @@
+dimension   	    2
+create_box  	    0 7.5E-4 0 0.54e-5 -0.27e-6 0.27e-6
+create_grid 	    80 10 1
+

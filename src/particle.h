@@ -25,8 +25,8 @@ class Particle : protected Pointers {
   int exist;                // 1 if particles exist
   int sorted;               // 1 if particles are sorted by grid cell
 
-  enum{MAXVIBMODE=40};       // increase value if species need more vib modes
-  enum{MAXELECMODE=50};       // increase value if species need more vib modes
+  enum{MAXVIBMODE=102};       // increase value if species need more vib modes
+  enum{MAXELECMODE=102};       // increase value if species need more vib modes
 
   struct Species {          // info on each particle species, read from file
     char id[16];            // species ID
@@ -36,7 +36,6 @@ class Particle : protected Pointers {
     double charge;          // multiple of electron charge
     double rotrel;          // inverse rotational relaxation number
     double rottemp[3];      // rotational temperature(s)
-    double RotTemp[3];      // rotational temperature(s)
     double vibtemp[MAXVIBMODE];   // vibrational temperature(s)
     double vibrel[MAXVIBMODE];    // inverse vibrational relaxation number(s)
     int vibdegen[MAXVIBMODE];     // vibrational mode degeneracies
@@ -48,7 +47,17 @@ class Particle : protected Pointers {
     int vibdiscrete_read;   // 1 if species.vib file read for this species
     double magmoment;       // magnetic moment, set by species_modify command
     int symnum;            // rotational symmetry number
-    int elecdegen;          // ground-state electron degeneracy
+    int Hform;          // Enthalpy of Formation (J)
+    double thermo_Low_Poly[7];  // Low Temp NASA7 thermo data
+    double thermo_High_Poly[7];  // High Temp NASA7 thermo data
+    double thermo_T[3];   // NASA7 thermo Temperature ranges
+  };
+
+  struct ThermoFile {          // extra thermo info read from thermofile
+    char id[16];
+    double thermo_Low_Poly[7];  // Low Temp NASA7 thermo data
+    double thermo_High_Poly[7];  // High Temp NASA7 thermo data
+    double thermo_T[3];   // NASA7 thermo Temperature ranges
   };
 
   struct RotFile {          // extra rotation info read from rotfile
@@ -211,6 +220,7 @@ class Particle : protected Pointers {
   int maxfile;              // max size of file list
 
   Species *filespecies;     // list of species read from file
+  ThermoFile *filethermo;         // list of species rotation info read from file
   RotFile *filerot;         // list of species rotation info read from file
   VibFile *filevib;         // list of species vibration info read from file
   ElecFile *fileelec;         // list of species electronic info read from file
@@ -242,6 +252,7 @@ class Particle : protected Pointers {
   // private methods
 
   void read_species_file();
+  void read_thermo_file();
   void read_rotation_file();
   void read_vibration_file();
   void read_electronic_file();

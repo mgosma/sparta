@@ -346,7 +346,7 @@ void ReadISurf::assign_corners(int n, bigint offset, uint8_t *ibuf, double *dbuf
       if (pix == 0 || piy == 0) zeroflag = 1;
       if (pix == nx || piy == ny) zeroflag = 1;
       if (dim == 3 && (piz == 0 || piz == nz)) zeroflag = 1;
-      if (zeroflag) error->all(FLERR,"Grid boundary value != 0");
+      //if (zeroflag) error->all(FLERR,"Grid boundary value != 0");
     }
 
     // ncorner = 0,1,2,3,4,5,6,7 when corner point is

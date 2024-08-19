@@ -31,6 +31,9 @@ class React : protected Pointers {
   int computeChemRates;      // 1 if only computing a TCE rate without
                              // actually doing reaction
   int partition;         // 0 using normal chem model, 1 if using partition function to compute reverse rates
+  int thermo;         // 0 using normal chem model, 1 if using thermodynamic NASA7 Polynomial data to compute reverse rates
+  int TCELL;              // 0 if using normal TCE model, 1 if using cell-temperature based method
+  int isothermal;          // 0 if post-reaction energies are distributed as normal
   int partialEnergy;         // 0 if using rDOF model, 1 if using all energy
 
   int tempwhich,tempindex,invoked_per_grid;

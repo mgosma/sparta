@@ -36,6 +36,9 @@
 #include "memory.h"
 #include "error.h"
 
+#include <iostream>
+using namespace std;
+
 using namespace SPARTA_NS;
 
 enum{COMPUTE,FIX,VARIABLE,RANDOM};
@@ -84,7 +87,7 @@ FixAblate::FixAblate(SPARTA *sparta, int narg, char **arg) :
   idsource = NULL;
 
   scale = atof(arg[4]);
-  if (scale < 0.0) error->all(FLERR,"Illegal fix ablate command");
+//  if (scale < 0.0) error->all(FLERR,"Illegal fix ablate command");
 
   if ((strncmp(arg[5],"c_",2) == 0) || (strncmp(arg[5],"f_",2) == 0)) {
     if (arg[5][0] == 'c') which = COMPUTE;
@@ -586,9 +589,9 @@ void FixAblate::create_surfs(int outflag)
   // DEBUG - remove all particles
   // if these lines are uncommented, all particles are wiped out
 
-  // particle->nlocal = 0;
-  // memory->destroy(mcflags_old);
-  // return;
+  //particle->nlocal = 0;
+  //memory->destroy(mcflags_old);
+  //return;
 
   // DEBUG - remove only the particles that are inside the surfs
   //         after ablation
@@ -817,7 +820,7 @@ void FixAblate::decrement()
   int i,imin;
   double minvalue,total;
   double *corners;
-
+  
   // total = full amount to decrement from cell
   // cdelta[icell] = amount to decrement from each corner point of icell
 
@@ -829,24 +832,52 @@ void FixAblate::decrement()
 
     total = celldelta[icell];
     corners = cvalues[icell];
-    while (total > 0.0) {
-      imin = -1;
-      minvalue = 256.0;
-      for (i = 0; i < ncorner; i++) {
-        if (corners[i] > 0.0 && corners[i] < minvalue &&
-            cdelta[icell][i] == 0.0) {
-          imin = i;
-          minvalue = corners[i];
-        }
-      }
-      if (imin == -1) break;
-      if (total < corners[imin]) {
-        cdelta[icell][imin] += total;
-        total = 0.0;
-      } else {
-        cdelta[icell][imin] = corners[imin];
-        total -= corners[imin];
-      }
+    //cout << total << endl;
+    if (total > 0.0) {
+	    while (total > 0.0) {
+	      imin = -1;
+	      minvalue = 256.0;
+	      for (i = 0; i < ncorner; i++) {
+		//cout << corners[i] << " ";
+		if (corners[i] > 0.0 && corners[i] < minvalue &&
+		    cdelta[icell][i] == 0.0) {
+		  imin = i;
+		  minvalue = corners[i];
+		}      
+	      }
+	      //cout << endl;
+	      if (imin == -1) break;
+	      if (total < corners[imin]) {
+		cdelta[icell][imin] += total;
+		total = 0.0;
+	      } else {
+		cdelta[icell][imin] = corners[imin];
+		total -= corners[imin];
+	      }
+	    }
+    }
+    else if (total < 0.0) {
+	    while (total < 0.0) {
+	      imin = -1;
+	      minvalue = 255.0;
+	      for (i = 0; i < ncorner; i++) {
+		//cout << corners[i] << " ";
+		if (corners[i] < minvalue &&
+		    cdelta[icell][i] == 0.0) {
+		  imin = i;
+		  minvalue = corners[i];
+		}      
+	      }
+	      //cout << endl;
+	      if (imin == -1) break;
+	      if (total > (corners[imin]-255.0)) {
+		cdelta[icell][imin] += total;
+		total = 0.0;
+	      } else {
+		cdelta[icell][imin] = corners[imin]-255.0;
+		total -= corners[imin];
+	      }
+	    }
     }
   }
 }
@@ -866,6 +897,7 @@ void FixAblate::sync()
 {
   int i,ix,iy,iz,jx,jy,jz,ixfirst,iyfirst,izfirst,jcorner;
   int icell,jcell;
+  int growth_flag;
   double total;
 
   comm_neigh_corners(CDELTA);
@@ -874,6 +906,8 @@ void FixAblate::sync()
   //   using contributions from all cells that share the corner point
   // insure order of numeric operations will give exact same answer
   //   for all Ncorner duplicates of a corner point (stored by other cells)
+  // In the case of surface growth, will block increase of corner point values
+  //   bordering ablate grid (bordering values will always be zero)
 
   Grid::ChildCell *cells = grid->cells;
   Grid::ChildInfo *cinfo = grid->cinfo;
@@ -900,7 +934,7 @@ void FixAblate::sync()
 
       // loop over 2x2x2 stencil of cells that share the corner point
       // also works for 2d, since izfirst = 0
-
+      growth_flag = 0;
       total = 0.0;
       jcorner = ncorner;
 
@@ -910,10 +944,18 @@ void FixAblate::sync()
             jcorner--;
 
             // check if neighbor cell is within bounds of ablate grid
-
-            if (ix+jx < 1 || ix+jx > nx) continue;
-            if (iy+jy < 1 || iy+jy > ny) continue;
-            if (iz+jz < 1 || iz+jz > nz) continue;
+            if (ix+jx < 1 || ix+jx > nx) {
+	      growth_flag = 1;
+              continue;
+            }
+            if (iy+jy < 1 || iy+jy > ny) {
+	      growth_flag = 1;
+              continue;
+            }
+            if (iz+jz < 1 || iz+jz > nz) {
+	      growth_flag = 1;
+              continue;
+            }
 
             // jcell = local index of (jx,jy,jz) neighbor cell of icell
 
@@ -929,6 +971,7 @@ void FixAblate::sync()
       }
 
       if (total > cvalues[icell][i]) cvalues[icell][i] = 0.0;
+      else if (total < 0 && growth_flag == 1) cvalues[icell][i] = 0.0;
       else cvalues[icell][i] -= total;
     }
   }

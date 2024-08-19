@@ -28,8 +28,8 @@
 #include "math_const.h"
 #include "memory.h"
 #include "error.h"
-//#include <iostream>
-//using namespace std;
+#include <iostream>
+using namespace std;
 using namespace SPARTA_NS;
 using namespace MathConst;
 
@@ -326,7 +326,7 @@ int CollideVSS::perform_collision(Particle::OnePart *&ip,
                                precoln.evib,postcoln.etotal,kspecies);
     //cout << "Reaction complete" << endl;
   }
-  //cout << "possible reactions occured" << endl;
+  
   else reactflag = 0;
 
   // repartition energy and perform velocity scattering for I,J,K particles
@@ -336,7 +336,7 @@ int CollideVSS::perform_collision(Particle::OnePart *&ip,
   kp = NULL;
 
   if (reactflag && !react->computeChemRates) {
-
+    //if (isnan(postcoln.etotal)) cout << "nan occurs in react loop" << endl;
     // add 3rd K particle if reaction created it
     // index of new K particle = nlocal-1
     // if add_particle() performs a realloc:
@@ -684,8 +684,8 @@ void CollideVSS::EEXCHANGE_NonReactingEDisposal(Particle::OnePart *ip,
                   factor *= 1/(1-phi);
                   if (relaxflag == VARIABLE) phi = factor*(1.0 + vibdof/transdof)/species[sp].vibrel[0];
 //phi = factor*(1.0 + vibdof/transdof)/vibrel_prohibdouble(sp,E_Dispose+p->evib,vibdof+transdof);
-                  else phi = factor*(1.0 + vibdof/transdof)/species[sp].vibrel[0];
-
+                  //else phi = factor*(1.0 + vibdof/transdof)/species[sp].vibrel[0];
+                  else phi = 1.0/species[sp].vibrel[0];
                   if (phi >= random->uniform()) {
                       E_Dispose += p->evib;
                       if (vibdof == 2) {
@@ -708,8 +708,8 @@ void CollideVSS::EEXCHANGE_NonReactingEDisposal(Particle::OnePart *ip,
                       factor *= 1/(1-phi);
                       if (relaxflag == VARIABLE) phi = factor*(1.0 + A/transdof)/species[sp].vibrel[0];
 //phi = factor*(1.0 + A/transdof)/vibrel_prohibdouble(sp,E_Dispose+p->evib,vibdof_dis+transdof);
-                      else phi = factor*(1.0 + A/transdof)/species[sp].vibrel[0];
-
+                      //else phi = factor*(1.0 + A/transdof)/species[sp].vibrel[0];
+                      else phi = 1.0/species[sp].vibrel[0];
                       if (phi >= random->uniform()) {
                           int **vibmode = particle->eiarray[particle->ewhich[index_vibmode]];
                           int pindex = p - particle->particles;
@@ -746,8 +746,8 @@ void CollideVSS::EEXCHANGE_NonReactingEDisposal(Particle::OnePart *ip,
                         factor *= 1/(1-phi);
                         if (relaxflag == VARIABLE) phi = factor*(1.0 + A/transdof)/species[sp].vibrel[imode];
 //phi = factor*(1.0 + A/transdof)/vibrel_prohibdouble(sp,E_Dispose+p->evib,vibdof_dis+transdof);
-                        else phi = factor*(1.0 + A/transdof)/species[sp].vibrel[imode];
-
+                        //else phi = factor*(1.0 + A/transdof)/species[sp].vibrel[imode];
+                        else phi = 1.0/species[sp].vibrel[0];
                         if (phi >= random->uniform()) {
                             ivib = vibmode[pindex][imode];
                             E_Dispose += ivib * update->boltz *
@@ -798,8 +798,8 @@ void CollideVSS::EEXCHANGE_NonReactingEDisposal(Particle::OnePart *ip,
                 factor *= 1/(1-phi);
                 if (relaxflag == VARIABLE)  phi = factor*(1.0 + rotdof/transdof)/species[sp].rotrel;
 //phi = factor*(1.0 + rotdof/transdof)/rotrel_prohibdouble(sp,E_Dispose+p->erot);
-                else phi = factor*(1.0 + rotdof/transdof)/species[sp].rotrel;
-
+                //else phi = factor*(1.0 + rotdof/transdof)/species[sp].rotrel;
+                else phi = 1.0/species[sp].rotrel;
                 if (phi >= random->uniform()) {
                     E_Dispose += p->erot;
                     if (rotdof == 2) {
@@ -1117,7 +1117,7 @@ void CollideVSS::EEXCHANGE_ReactingEDisposal(Particle::OnePart *ip,
   
   postcoln.eint = postcoln.erot + postcoln.evib;
   postcoln.etrans = E_Dispose;
-  //cout << "Pre_Energy: " << E_PreLB << " Vib E: " << postcoln.evib << " Rot E: " << postcoln.erot << " Trans E: " << postcoln.etrans << endl;
+  //cout << "Pre React: " << precoln.etotal << " Pre_Energy: " << E_PreLB << " Vib E: " << postcoln.evib << " Rot E: " << postcoln.erot << " Trans E: " << postcoln.etrans << endl;
   if (E_Dispose < 0) error->all(FLERR,"Impossible Energy Post-collision");
 }
 

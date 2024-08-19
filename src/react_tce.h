@@ -48,6 +48,13 @@ class ReactTCE : public ReactBird {
 
 
   double Partition(int nvibmode, int nrotmode, int nelmode, int sym, int edegen[], double ElecTemp[], double VibTemp[], double RotTemp[], double mass, double CellTemp);
+
+  double Gibbs(double ThermoTemp[], double LowPoly[], double HighPoly[], double CellTemp, double Number_Density);
+  double dGibbs(double ThermoTemp[], double LowPoly[], double HighPoly[], double CellTemp, double Number_Density);
+  double Ereact(OneReaction *r, double CellTemp, double Number_Density);
+  double HSpec(double ThermoTemp[], double LowPoly[], double HighPoly[], double CellTemp, int index);
+  double dHSpec(double ThermoTemp[], double LowPoly[], double HighPoly[], double CellTemp);
+  
 };
 
 }

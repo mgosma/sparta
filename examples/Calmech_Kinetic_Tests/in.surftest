@@ -1,0 +1,89 @@
+# thermal gas in a 3d box with collisions and chemistry
+# particles reflect off global box boundaries Frank
+
+seed	    	    12345
+dimension   	    3
+global              gridcut 1.0e-5 comm/sort yes
+
+boundary	    ss ss ss
+#boundary	    rr rr rr
+
+
+create_box  	    0 4.64E-6 0 4.64E-6 0 4.64E-6
+#create_box  	    0 4.641588834E-6 0 4.641588834E-6 0 4.641588834E-6
+create_grid 	    3 3 3
+
+balance_grid        rcb part
+#echo                both
+
+species		    mutation.species C C3H4 C2H C2H2 C2H3 C2H4 C2H5 C2H6 CH2 C3H2 C3H3 C5H5 C5H6 C6H6 CH CH3 CH4 H H2 N2 vibfile mutation.vib rotfile mutation.rot elecfile mutation.elec thermofile calmech.thermo
+mixture		    air C C3H4 C2H C2H2 C2H3 C2H4 C2H5 C2H6 CH2 C3H2 C3H3 C5H5 C5H6 C6H6 CH CH3 CH4 H H2 N2 vstream 0.0 0.0 0.0 nrho 1.5E24
+mixture             air CH4 frac 1.0
+#mixture             air CH2 frac 0.5
+#mixture             air C2H frac 0.5
+#mixture             air H2 frac 0.5
+global              temp 2000.0
+global              fnum 100
+collide		    vss air FULL_VSS_DATABASE.error
+collide_modify      vibrate no
+#fix                 vib vibmode
+
+surf_collide hotwall specular
+#surf_collide hotwall diffuse 2000 .5
+bound_modify xlo xhi ylo yhi zlo zhi collide hotwall 
+
+create_particles    air n 0 
+
+stats		    100
+compute thermal thermal/grid all species temp  
+compute test thermal/grid all air temp press
+compute             temp temp
+compute 	    1 count CH4
+compute 	    2 count CH3
+compute 	    3 count H
+compute             4 count H2
+compute		    5 count C2H2
+compute		    6 count C2H3
+compute		    7 count C2H4
+compute		    8 count C2H5
+compute		    9 count C2H6
+
+compute tvib tvib/grid all species
+fix test ave/grid all 1 100 100 c_test[1]
+
+react               tce methane_diss.tce
+react_modify rboost 1.0
+react_modify partial_energy no c_test[1]
+#react_modify partition yes
+react_modify compute_chem_rates yes
+react_modify thermo yes
+#react_modify tcell yes
+react_modify isothermal no
+#react_modify partial_energy no c_thermal
+
+compute             P reduce ave c_test[2]
+
+compute           10 grid all air nrho temp u v w
+fix               10 ave/grid all 1 100 100 c_10[*]
+fix test ave/grid all 1 100 100 c_test[1]
+
+compute           lambda lambda/grid f_10[1] f_10[2] CH4 kall
+#fix               lambda ave/grid all 1 100 100 c_lambda[1] c_lambda[2]
+compute avgMFP reduce ave c_lambda[1]
+compute avgKN reduce ave c_lambda[2]
+compute Tmin reduce min c_test[1]
+
+stats_style	    step cpu np nbound nattempt ncoll nreact c_temp c_P c_Tmin
+
+
+#dump 1 grid all 100 tmp.grid id c_test[1] c_test[2]
+#dump                2 image all 1000 image.*.ppm type type pdiam 3.0e-6 &
+#		    size 512 512 gline yes 0.005
+
+#dump 		    2 particle all 100 mixture.ke type ke erot evib p_vibmode[1] p_vibmode[2] p_vibmode[3] p_vibmode[4] p_vibmode[5] p_vibmode[6] p_vibmode[7] p_vibmode[8]
+#dump_modify	    2 pad 4
+
+
+#timestep 	    1.00E-9
+timestep 	    1.00E-9
+run 		    10000

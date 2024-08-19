@@ -29,8 +29,8 @@
 #include "error.h"
 #include "fix_vibmode.h"
 
-//#include <iostream>
-//using namespace std;
+#include <iostream>
+using namespace std;
 
 using namespace SPARTA_NS;
 
@@ -41,7 +41,7 @@ enum{INT,DOUBLE};                      // several files
 #define DELTA 16384
 #define DELTASPECIES 16
 #define DELTAMIXTURE 8
-#define MAXLINE 1024
+#define MAXLINE 4096
 
 // customize by adding an abbreviation string
 // also add a check for the keyword in 2 places in add_species()
@@ -713,7 +713,7 @@ int Particle::clone_particle(int index)
 
 void Particle::add_species(int narg, char **arg)
 {
-  int i,j,k,n;;
+  int i,j,k,l,n;;
 
   if (narg < 2) error->all(FLERR,"Illegal species command");
 
@@ -757,6 +757,10 @@ void Particle::add_species(int narg, char **arg)
       break;
     } else if (strcmp(arg[iarg],"vibfile") == 0) {
       break;
+    } else if (strcmp(arg[iarg],"thermofile") == 0) {
+      break;
+    } else if (strcmp(arg[iarg],"elecfile") == 0) {
+      break;
     } else {
       newspecies++;
     }
@@ -774,6 +778,10 @@ void Particle::add_species(int narg, char **arg)
     } else if (strcmp(arg[iarg],"rotfile") == 0) {
       break;
     } else if (strcmp(arg[iarg],"vibfile") == 0) {
+      break;
+    } else if (strcmp(arg[iarg],"thermofile") == 0) {
+      break;
+    } else if (strcmp(arg[iarg],"elecfile") == 0) {
       break;
     } else {
       names[newspecies++] = arg[iarg];
@@ -829,6 +837,7 @@ void Particle::add_species(int narg, char **arg)
   int rotindex = 0;
   int vibindex = 0;
   int elecindex = 0;
+  int thermoindex = 0;
 
   while (iarg < narg) {
     if (strcmp(arg[iarg],"rotfile") == 0) {
@@ -838,6 +847,12 @@ void Particle::add_species(int narg, char **arg)
       if (rotindex)
         error->all(FLERR,"Species command can only use a single rotfile");
       rotindex = iarg+1;
+      iarg += 2;
+    } else if (strcmp(arg[iarg],"thermofile") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal species command");
+      if (thermoindex)
+        error->all(FLERR,"Species command can only use a single thermofile");
+      thermoindex = iarg+1;
       iarg += 2;
     } else if (strcmp(arg[iarg],"vibfile") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal species command");
@@ -852,6 +867,51 @@ void Particle::add_species(int narg, char **arg)
       elecindex = iarg+1;
       iarg += 2;
     } else error->all(FLERR,"Illegal species command");
+  }
+
+  // read thermo species file and setup per-species params
+
+  if (thermoindex) {
+    if (me == 0) {
+      fp = fopen(arg[thermoindex],"r");
+      if (fp == NULL) {
+        char str[128];
+        sprintf(str,"Cannot open thermo file %s",arg[thermoindex]);
+        error->one(FLERR,str);
+      }
+    }
+
+    nfile = maxfile = 0;
+    filethermo = NULL;
+
+    if (me == 0) read_thermo_file();
+    MPI_Bcast(&nfile,1,MPI_INT,0,world);
+    if (comm->me) {
+      filethermo = (ThermoFile *)
+        memory->smalloc(nfile*sizeof(ThermoFile),"particle:filethermo");
+    }
+    MPI_Bcast(filethermo,nfile*sizeof(ThermoFile),MPI_BYTE,0,world);
+
+    for (i = 0; i < newspecies; i++) {
+      int ii = nspecies_original + i;
+
+      for (j = 0; j < nfile; j++)
+        if (strcmp(names[i],filethermo[j].id) == 0) break;
+      if (j == nfile) {
+        cout << names[i] << endl;
+        error->all(FLERR,"Species ID does not appear in thermo file");
+      }
+      for (k = 0; k < 3; k++) {
+        species[ii].thermo_T[k] = filethermo[j].thermo_T[k];
+      }
+      
+      for (l = 0; l < 7; l++) {
+        species[ii].thermo_Low_Poly[l] = filethermo[j].thermo_Low_Poly[l];
+        species[ii].thermo_High_Poly[l] = filethermo[j].thermo_High_Poly[l];
+      }
+    }
+
+    memory->sfree(filethermo);
   }
 
   // read rotational species file and setup per-species params
@@ -924,7 +984,7 @@ void Particle::add_species(int narg, char **arg)
       fileelec = (ElecFile *)
         memory->smalloc(nfile*sizeof(ElecFile),"particle:fileelec");
     }
-    MPI_Bcast(fileelec,nfile*sizeof(VibFile),MPI_BYTE,0,world);
+    MPI_Bcast(fileelec,nfile*sizeof(ElecFile),MPI_BYTE,0,world);
 
     for (i = 0; i < newspecies; i++) {
       int ii = nspecies_original + i;
@@ -936,19 +996,18 @@ void Particle::add_species(int narg, char **arg)
       }
 
       int nmode = fileelec[j].nmode;
-
+      
       species[ii].nelecmode = nmode;
       for (k = 0; k < nmode; k++) {
         species[ii].elecdeg[k] = fileelec[j].elecdeg[k];
         species[ii].electemp[k] = fileelec[j].electemp[k];
       }
-
+      //cout << nmode << " " << species[ii].nelecmode << endl;
       maxelecmode = MAX(maxelecmode,species[ii].nelecmode);
     }
-
+    //cout << "memory sfree" << endl;
     memory->sfree(fileelec);
   }
-
   // read vibrational species file and setup per-species params
 
   if (vibindex) {
@@ -1000,6 +1059,7 @@ void Particle::add_species(int narg, char **arg)
 
     memory->sfree(filevib);
   }
+  //cout << "vib file read" << endl;
   // clean up
 
   delete [] names;
@@ -1179,7 +1239,7 @@ void Particle::read_species_file()
 
     strcpy(copy,line);
     int nwords = wordcount(copy,NULL);
-    if (nwords != NWORDS && nwords != (NWORDS+5))
+    if (nwords != NWORDS && nwords != (NWORDS+2))
       error->one(FLERR,"Incorrect line format in species file");
 
     if (nfile == maxfile) {
@@ -1207,12 +1267,9 @@ void Particle::read_species_file()
     fsp->specwt = atof(words[8]);
     fsp->charge = atof(words[9]);
 
-    if (nwords == (NWORDS+5)) {
-      fsp->RotTemp[0] = atof(words[10]);
-      fsp->RotTemp[1] = atof(words[11]);
-      fsp->RotTemp[2] = atof(words[12]);
-      fsp->symnum = atof(words[13]);
-      fsp->elecdegen = atof(words[14]);
+    if (nwords == (NWORDS+2)) {
+      fsp->symnum = atof(words[10]);
+      fsp->Hform = atof(words[11]);
     }
 
     if (fsp->rotdof > 0 || fsp->vibdof > 0) fsp->internaldof = 1;
@@ -1243,6 +1300,61 @@ void Particle::read_species_file()
     }
 
     fsp->vibdiscrete_read = 0;
+
+    nfile++;
+  }
+
+  delete [] words;
+
+  fclose(fp);
+}
+
+/* ----------------------------------------------------------------------
+   read species thermodynamic data
+------------------------------------------------------------------------- */
+
+void Particle::read_thermo_file()
+{
+  // read file line by line
+  // skip blank lines or comment lines starting with '#'
+  // all other lines must have NWORDS
+
+  int NWORDS = 18;
+  char **words = new char*[NWORDS];
+  char line[MAXLINE],copy[MAXLINE];
+
+  while (fgets(line,MAXLINE,fp)) {
+    int pre = strspn(line," \t\n\r");
+    if (pre == strlen(line) || line[pre] == '#') continue;
+
+    strcpy(copy,line);
+    int nwords = wordcount(copy,NULL);
+    if (nwords != NWORDS)
+      error->one(FLERR,"Incorrect line format in thermo file");
+
+    if (nfile == maxfile) {
+      maxfile += DELTASPECIES;
+      filethermo = (ThermoFile *)
+	memory->srealloc(filethermo,maxfile*sizeof(ThermoFile),
+			 "particle:filethermo");
+      memset(&filethermo[nfile],0,(maxfile-nfile)*sizeof(ThermoFile));
+    }
+
+    nwords = wordcount(line,words);
+    ThermoFile *tsp = &filethermo[nfile];
+
+    if (strlen(words[0]) + 1 > 16)
+      error->one(FLERR,"Invalid species ID in rotation file");
+    strcpy(tsp->id,words[0]);
+
+    for (int i = 0; i < 3; i++) {
+      tsp->thermo_T[i] = atof(words[i+1]);
+    }
+
+    for (int i = 0; i < 7; i++) {
+      tsp->thermo_Low_Poly[i] = atof(words[i+4]);
+      tsp->thermo_High_Poly[i] = atof(words[i+11]);
+    }
 
     nfile++;
   }
@@ -1351,6 +1463,7 @@ void Particle::read_vibration_file()
     strcpy(vsp->id,words[0]);
 
     vsp->nmode = atoi(words[1]);
+    //cout << words[0] << " " << nwords << endl;
     if (vsp->nmode < 2 || vsp->nmode > MAXVIBMODE)
       error->one(FLERR,"Invalid N count in vibration file");
     if (nwords != 2 + 3*vsp->nmode)
@@ -1415,7 +1528,7 @@ void Particle::read_electronic_file()
       error->one(FLERR,"Invalid N count in electronic file");
     if (nwords != 2 + 2*esp->nmode)
       error->one(FLERR,"Incorrect line format in electronic file");
-
+    //cout << esp->nmode << endl;
     int j = 2;
     for (int i = 0; i < esp->nmode; i++) {
       esp->elecdeg[i] = atof(words[j++]);

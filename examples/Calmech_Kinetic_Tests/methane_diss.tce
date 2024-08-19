@@ -1,0 +1,57 @@
+##### Dissociation (Note: Must Have Reaction Copied for Every possible "M" Molecule)
+# Attempt to compute dissociation rate based on provided recombination reaction rates
+
+#CH4 + CH4 --> CH3 + H + CH4
+#D A 1.0 3.53E-20 9.57E-22 -6.3 7.1978E-19
+
+######## Recombination
+CH4 + CH4 --> CH3 + H + CH4
+D A 1.0 8.1734e-19 7.8047e17 -8.2 7.1978E-19
+
+#CH4 + CH4 --> CH3 + H + CH4
+#D A 1.0 0.0 5.56e-21 0.0 0.0
+
+#2500 K
+#CH4 + CH4 --> CH3 + H + CH4
+#D A 1.0 1.55e-19 4.97031E-19 0.0 -1.55e-19
+
+#5000 K
+#CH4 + CH4 --> CH3 + H + CH4
+#D A 1.0 1.55e-19 2.47953E-17 0.0 -1.55e-19
+
+#CH4 + N2 --> CH3 + H + N2
+#Y A 1.0  3.52541e-20  1.20564e-20 -6.30000  -7.29139e-19
+
+#CH4 + CH4 --> CH3 + H + CH4
+#Y A 1.0  3.52541e-20  1.20564e-20 -6.30000  -7.29139e-19
+#Y A 1.0  3.52541e-20  8.61173e-21 -6.30000  -7.29139e-19
+
+#CH3 + H2 --> CH4 + H
+#X A 0.0 1.08E-19 7.31E-16 0.0 5.4799e-21
+
+#C5H6 + C5H6 --> C5H5 + H + C5H6
+#D A 0.0  8.08535e-19  1.73000e+68 -15.16000  -5.63610e-19
+
+#Overpredicted Reactions
+#Most Common
+#C2H2 + CH2 --> C3H3 + H
+#E A 1.0  0.00000e+00  3.15510e-16  0.00000   8.34853e-20
+#C3H3 + H --> C2H2 + CH2
+#X A 1.0  0.00000e+00  3.15510e-16  0.00000  -8.34853e-20
+
+#Second most common
+#C2H + H2 --> C2H2 + H
+#E A 1.0  6.26037e-21  5.49651e-24  2.26000   2.01892e-19
+#C2H2 + H --> C2H + H2
+#X A 1.0  6.26037e-21  8.49651e-24  2.26000  -2.01892e-19
+
+#Third most common
+#CH3 + C3H4 --> C3H3 + CH4
+#E A 1.0  1.54633e-19  7.00764e-16  0.00000   9.13267e-20
+#C3H3 + CH4 --> CH3 + C3H4
+#X A 1.0  1.54633e-19  7.00764e-16  0.00000  -9.13267e-20
+
+#CH4 + H --> CH3 + H2
+#E A 1.0  7.53238e-20  1.09598e-21  1.62000  -5.15099e-21
+#CH3 + H2 --> CH4 + H
+#X A 1.0  7.53238e-20  1.09598e-21  1.62000   5.15099e-21

@@ -1,0 +1,108 @@
+# thermal gas in a 3d box with collisions and chemistry
+# particles reflect off global box boundaries Frank
+
+seed	    	    12345
+dimension   	    2
+global              gridcut 1.0e-5 comm/sort yes
+
+boundary	    o ss p
+
+
+create_box  	    0 7.5E-4 0 0.54e-5 -0.27e-6 0.27e-6
+create_grid 	    80 10 1
+
+balance_grid        rcb part
+#echo                both
+
+#species		    mutation.species C3H3 C5H5 C5H6 C6H6 CH CH3 CH4 H H2 N2 C C3H4 C2H C2H2 C2H3 C2H4 C2H5 C2H6 CH2 C3H2 vibfile mutation.vib rotfile mutation.rot elecfile mutation.elec
+species		    mutation.species CH4 C2H5 C2H6 CH3 C2H C3H3 C5H5 C5H6 C6H6 CH H H2 N2 C C3H4 C2H2 C2H3 C2H4 CH2 C3H2 thermofile calmech.thermo
+#species		    mutation.species CH4 C2H5 C2H6 CH3 thermofile calmech.thermo
+mixture		    air CH4 C2H5 C2H6 CH3 C2H C3H3 C5H5 C5H6 C6H6 CH H H2 N2 C C3H4 C2H2 C2H3 C2H4 CH2 C3H2 vstream 0.0 0.0 0.0 nrho 1.45E22
+#mixture             air N2 frac 0.9
+mixture             air CH4 frac 1.0
+#mixture             air C2H5 frac 0.5
+#mixture             air C2H frac 0.01
+#mixture             air H frac 0.01
+global              temp 3000.0
+#global              fnum 50000
+global              fnum 1160000000
+collide		    vss air FULL_VSS_DATABASE.error
+collide_modify      rotate no vibrate no
+#collide_modify      vibrate discrete
+#fix                 vib vibmode
+
+#surf_collide hotwall specular
+surf_collide hotwall diffuse 3000 0.85
+bound_modify ylo yhi collide hotwall 
+
+fix		    inlet emit/face air xlo subsonic 25000.0 3000.0
+fix		    outlet emit/face air xhi subsonic 10000.0 3000.0
+
+create_particles    air n 0 
+
+stats		    1000
+compute thermal thermal/grid all species temp  
+compute test thermal/grid all air temp press
+compute             temp temp
+compute	C	count	C
+compute	C3H4	count	C3H4
+compute	C2H	count	C2H
+compute	C2H2	count	C2H2
+compute	C2H3	count	C2H3
+compute	C2H4	count	C2H4
+compute	C2H5	count	C2H5
+compute	C2H6	count	C2H6
+compute	CH2	count	CH2
+compute	C3H2	count	C3H2
+compute	C3H3	count	C3H3
+compute	C5H5	count	C5H5
+compute	C5H6	count	C5H6
+compute	C6H6	count	C6H6
+compute	CH	count	CH
+compute	CH3	count	CH3
+compute	CH4	count	CH4
+compute	H	count	H
+compute	H2	count	H2
+compute	N2	count	N2
+
+
+compute tvib tvib/grid all species
+
+react               tce calmech.tce
+react_modify rboost 1.0
+react_modify partial_energy no c_test[1]
+#react_modify partition yes
+react_modify thermo yes
+react_modify isothermal no
+#react_modify compute_chem_rates yes
+#react_modify tcell yes
+#react_modify partial_energy no c_thermal
+
+compute             P reduce ave c_test[2]
+
+compute           10 grid all air nrho temp u v w
+fix               10 ave/grid all 1 100 100 c_10[*]
+
+compute           lambda lambda/grid f_10[1] f_10[2] CH4 kall
+#fix               lambda ave/grid all 1 100 100 c_lambda[1] c_lambda[2]
+compute mass grid all air massrho
+compute Total_mass reduce sum c_mass[*]
+compute avgMFP reduce ave c_lambda[1]
+compute avgKN reduce ave c_lambda[2]
+
+stats_style	    step cpu np nattempt ncoll nreact c_temp c_P c_avgKN c_N2 c_C c_C3H4 c_C2H c_C2H2 c_C2H3 c_C2H4 c_C2H5 c_C2H6 c_CH2 c_C3H2 c_C3H3 c_C5H5 c_C5H6 c_C6H6 c_CH c_CH3 c_CH4 c_H c_H2
+stats 100
+#stats_style	    step cpu np nattempt ncoll nreact c_temp c_P c_avgKN c_N2 c_CH4 c_C2H4 c_C2H2 c_C3H3 c_H c_H2
+
+#dump 1 grid all 10 tmp.grid id c_test[1] c_test[2] c_tvib[1] c_tvib[2] c_tvib[3] c_tvib[4] c_tvib[5] c_tvib[6] c_tvib[7] c_tvib[8] c_tvib[9]
+#dump                2 image all 1000 image.*.ppm type type pdiam 3.0e-6 &
+#		    size 512 512 gline yes 0.005
+
+#dump 		    2 particle all 100 mixture.ke type ke erot evib p_vibmode[1] p_vibmode[2] p_vibmode[3] p_vibmode[4] p_vibmode[5] p_vibmode[6] p_vibmode[7] p_vibmode[8]
+#dump_modify	    2 pad 4
+
+
+#timestep 	    1.00E-9
+timestep 	    1.00E-9
+#run                 1000
+run 		    2000000

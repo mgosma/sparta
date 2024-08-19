@@ -37,13 +37,16 @@
 #include "math_extra.h"
 #include "memory.h"
 #include "error.h"
+#include "variable.h"
 
 using namespace SPARTA_NS;
 using namespace MathConst;
-
+//#include <iostream>
+//using namespace std;
 enum{INT,DOUBLE};                      // several files
 enum{FACE,SURF};
 enum{PSFACE,PSLINE,PSTRI};
+enum{NUMERIC,VARIABLE,CUSTOM};
 
 #define DELTA_TALLY 1024
 #define DELTA_PART 8                   // make this bigger once debugged
@@ -129,7 +132,27 @@ SurfReactAdsorb::SurfReactAdsorb(SPARTA *sparta, int narg, char **arg) :
   if (mode == SURF && surf->nsurf == 0)
     error->all(FLERR,"Cannot use surf_react adsorb when no surfs exist");
 
-  twall = input->numeric(FLERR,arg[iarg+3]);
+  //twall = input->numeric(FLERR,arg[iarg+3]);
+
+
+  if (strstr(arg[iarg+3],"v_") == arg[iarg+3]) {
+    dynamicflag = 1;
+    tmode = VARIABLE;
+    int n = strlen(&arg[iarg+3][2]) + 1;
+    tstr = new char[n];
+    strcpy(tstr,&arg[iarg+3][2]);
+  } else if (strstr(arg[iarg+3],"s_") == arg[iarg+3]) {
+    tmode = CUSTOM;
+    int n = strlen(&arg[iarg+3][2]) + 1;
+    tstr = new char[n];
+    strcpy(tstr,&arg[iarg+3][2]);
+  } else {
+    tmode = NUMERIC;
+    twall = input->numeric(FLERR,arg[iarg+3]);
+    if (twall <= 0.0) error->all(FLERR,"Surf_collide diffuse temp <= 0.0");
+  }
+
+
   max_cover = input->numeric(FLERR,arg[iarg+4]);
 
   // species_surf = list of surface species IDs
@@ -491,6 +514,24 @@ void SurfReactAdsorb::init()
 {
   SurfReact::init();
 
+  // check variable and custom surf vector
+
+  if (tmode == VARIABLE) {
+    tvar = input->variable->find(tstr);
+    if (tvar < 0)
+      error->all(FLERR,"Surf_collide diffuse variable name does not exist");
+    if (!input->variable->equal_style(tvar))
+      error->all(FLERR,"Surf_collide diffuse variable is invalid style");
+  } else if (tmode == CUSTOM) {
+    int tindex = surf->find_custom(tstr);
+    if (tindex < 0) 
+      error->all(FLERR,"Surf_collide diffuse could not find "
+                 "custom per-surf vector");
+    if (surf->etype[tindex] != DOUBLE || surf->esize[tindex] != 0)
+      error->all(FLERR,"Surf_collide diffuse custom per-surf vector in invalid");
+    tvector = surf->edvec[surf->ewhich[tindex]];
+  }
+
   // this_index = index of this instance of surf react/adsorb
   //              in Surf list of reaction models
 
@@ -603,6 +644,9 @@ int SurfReactAdsorb::react(Particle::OnePart *&ip, int isurf, double *norm,
   double factor = fnum * weight[isurf] / area[isurf];
   double ms_inv = factor / max_cover;
 
+  if (tmode == CUSTOM) twall = tvector[isurf];
+  //cout << twall << endl;
+
   // loop over possible reactions for this species
 
   Particle::Species *species = particle->species;
@@ -618,6 +662,10 @@ int SurfReactAdsorb::react(Particle::OnePart *&ip, int isurf, double *norm,
     r = &rlist_gs[list[i]];
 
     if (r->style == ARRHENIUS) coeff_val = 3;
+    r->k_react = r->coeff[0];
+    if (r->style == ARRHENIUS)
+      r->k_react = r->k_react * pow(twall,r->coeff[1]) *
+        exp(-r->coeff[2]/(twall));
 
     switch (r->type) {
     case DISSOCIATION:
@@ -1916,11 +1964,11 @@ void SurfReactAdsorb::readfile_gs(char *fname)
 
     case LH3:
       {
-        if (r->state_products[0][0] != 's') {
-          print_reaction(copy1,copy2);
-          error->all(FLERR,
-                     "First product must be surface phase in LH3 reaction");
-        }
+        //if (r->state_products[0][0] != 's') {
+        //  print_reaction(copy1,copy2);
+        //  error->all(FLERR,
+        //             "First product must be surface phase in LH3 reaction");
+        //}
         break;
       }
 
@@ -1971,10 +2019,10 @@ void SurfReactAdsorb::readfile_gs(char *fname)
       }
     }
 
-    r->k_react = r->coeff[0];
-    if (r->style == ARRHENIUS)
-      r->k_react = r->k_react * pow(twall,r->coeff[1]) *
-        exp(-r->coeff[2]/(twall));
+    //r->k_react = r->coeff[0];
+    //if (r->style == ARRHENIUS)
+    //  r->k_react = r->k_react * pow(twall,r->coeff[1]) *
+    //   exp(-r->coeff[2]/(twall));
 
     // process 3rd line of reaction
     // NOTE: RIGHT HERE
@@ -2545,9 +2593,9 @@ void SurfReactAdsorb::readfile_ps(char *fname)
       }
     }
 
-    r->k_react = r->coeff[0];
-    if (r->style == ARRHENIUS) r->k_react = r->k_react * pow(twall,r->coeff[1]) *
-                                 exp(-r->coeff[2]/(twall));
+    //r->k_react = r->coeff[0];
+    //if (r->style == ARRHENIUS) r->k_react = r->k_react * pow(twall,r->coeff[1]) *
+                                 //exp(-r->coeff[2]/(twall));
     //nlist_ps++;
 
     // process 3rd line of reaction
@@ -2742,6 +2790,8 @@ void SurfReactAdsorb::PS_react(int modePS, int isurf, double *norm)
   OneReaction_PS *r;
   int rxn_occur[nactive_ps];
 
+  if (tmode == CUSTOM) twall = tvector[isurf];
+
   for (int i = 0; i < nactive_ps; i++) {
     r = &rlist_ps[reactions_ps_list[i]];
     //int react_num = r->index;
@@ -2767,7 +2817,9 @@ void SurfReactAdsorb::PS_react(int modePS, int isurf, double *norm)
         r = &rlist_ps[reactions_ps_list[i]];
         //int react_num = r->index;
 
-
+  	r->k_react = r->coeff[0];
+  	if (r->style == ARRHENIUS) r->k_react = r->k_react * pow(twall,r->coeff[1]) *
+                               		exp(-r->coeff[2]/(twall));
         nu_react[i] = r->k_react;
 
         if (r->type == SB) {
@@ -2830,9 +2882,9 @@ void SurfReactAdsorb::PS_react(int modePS, int isurf, double *norm)
         nsingle++;
         ireaction = nlist_gs + reactions_ps_list[i];
         tally_single[ireaction]++;
-        if (ncompute_tally)
-          for (m = 0; m < ncompute_tally; m++)
-            clist_active[m]->surf_tally(isurf,-1,ireaction,NULL,NULL,NULL);
+        //if (ncompute_tally)
+        //  for (m = 0; m < ncompute_tally; m++)
+        //    clist_active[m]->surf_tally(isurf,-1,ireaction,NULL,NULL,NULL);
 
         // update tau
 
@@ -3536,3 +3588,4 @@ void SurfReactAdsorb::print_reaction(char *line1, char *line2)
   printf("Bad reaction format:\n");
   printf("%s%s",line1,line2);
 };
+
