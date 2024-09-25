@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.12.0)
 
 project(SPARTA)
 
@@ -12,11 +12,37 @@ if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
 endif()
 # ######### END CMAKE POLICY SETTINGS ##########
 
+# we require C++11 without extensions. Kokkos requires at least C++17 (currently)
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 11)
+endif()
+if(CMAKE_CXX_STANDARD LESS 11)
+  message(FATAL_ERROR "C++ standard must be set to at least 11")
+endif()
+if(PKG_KOKKOS AND (CMAKE_CXX_STANDARD LESS 17))
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Use compiler extensions")
+# ugly hacks for MSVC which by default always reports an old C++ standard in the __cplusplus macro
+# and prints lots of pointless warnings about "unsafe" functions
+if(MSVC)
+  if((CMAKE_CXX_COMPILER_ID STREQUAL "MSVC") OR (CMAKE_CXX_COMPILER_ID STREQUAL "Intel"))
+    add_compile_options(/Zc:__cplusplus)
+    add_compile_options(/wd4244)
+    add_compile_options(/wd4267)
+    add_compile_options(/wd4250)
+    add_compile_options(/EHsc)
+  endif()
+  add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
+
 # ######### BEGIN SET COMMON DIRS ##########
 set(SPARTA_TPL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../lib)
 set(SPARTA_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../src)
 set(SPARTA_EXAMPLES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../examples)
 set(SPARTA_TOOLS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../tools)
+set(PARAVIEW_TOOLS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../tools/paraview)
 set(SPARTA_DSMC_TESTING_EXAMPLES_DIR ${SPARTA_DSMC_TESTING_PATH}/examples)
 set(SPARTA_CMAKE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Modules)
@@ -123,7 +149,12 @@ include(${SPARTA_CMAKE_COMMON_DIR}/process/sparta_build_options.cmake)
 include(${SPARTA_CMAKE_COMMON_DIR}/print/sparta_options.cmake)
 # ######### END   PRINT SPARTA OPTIONS ##########
 
+# ######### BEGIN TEST PARAVIEW SPARTA OPTIONS ##########
+include(${SPARTA_CMAKE_COMMON_DIR}/test/sparta_test_paraview.cmake)
+# ######### END   TEST PARAVIEW SPARTA OPTIONS ##########
+
 add_subdirectory(${SPARTA_SRC_DIR} ${CMAKE_CURRENT_BINARY_DIR}/src)
+add_subdirectory(${PARAVIEW_TOOLS_DIR} ${CMAKE_CURRENT_BINARY_DIR}/paraview)
 add_subdirectory(${SPARTA_EXAMPLES_DIR} ${CMAKE_CURRENT_BINARY_DIR}/examples)
 if(SPARTA_DSMC_TESTING_PATH)
   add_subdirectory(${SPARTA_DSMC_TESTING_EXAMPLES_DIR}

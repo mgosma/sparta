@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -240,11 +240,11 @@ void ReactBird::init()
     double sigma = MY_PI*diam*diam;
 
     // read effective internal DOFs participating in the reaction
+    // read effective internal DOFs participating in the reaction
 
-    double z = r->coeff[0];
+    //double z = r->coeff[0];
 
     // add additional coeff for effective DOF
-    // added MAX() limit, 24Aug18
 
     double c1 = MY_PIS*epsilon*r->coeff[2]/(2.0*sigma) *
       sqrt(mr/(2.0*update->boltz*tref)) *

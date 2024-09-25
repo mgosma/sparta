@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -57,6 +57,8 @@ class FixAveSurf : public Fix {
   surfint *tally2surf;     // tally2surf[I] = surf ID of Ith tally
   double *vec_tally;       // tally values, maxtally in length
   double **array_tally;
+
+  int count_tally;         // # of values which process particle/surf tallies
 
   // hash for surf IDs
 

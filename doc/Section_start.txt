@@ -1,6 +1,6 @@
 "Previous Section"_Section_intro.html - "SPARTA WWW Site"_sws - "SPARTA Documentation"_sd - "SPARTA Commands"_sc - "Next Section"_Section_commands.html :c
 
-:link(sws,http://sparta.sandia.gov)
+:link(sws,https://sparta.github.io)
 :link(sd,Manual.html)
 :link(sc,Section_commands.html#comm)
 
@@ -70,15 +70,19 @@ Please read this section carefully.  If you are not comfortable with
 cmake, makefiles, or building codes on a Linux platform, or running an MPI
 job on your machine, please find a local expert to help you.
 
+SPARTA requires that the compiler supports C++11. SPARTA will throw an error
+if this is not the case. If you are building SPARTA with Kokkos, the compiler
+must support C++17.
+
 If you have a build problem that you are convinced is a SPARTA issue
 (e.g. the compiler complains about a line of SPARTA source code), then
 please send an email to the
-"developers"_http://sparta.sandia.gov/authors.html.
+"developers"_https://sparta.github.io/authors.html.
 
 If you succeed in building SPARTA on a new kind of machine, for which
 there isn't a similar Makefile in the src/MAKE directory or .cmake file
 in cmake/presets, send it to the 
-"developers"_http://sparta.sandia.gov/authors.html and we'll include it in future SPARTA releases.
+"developers"_https://sparta.github.io/authors.html and we'll include it in future SPARTA releases.
 
 :line
 
@@ -222,7 +226,7 @@ Using one of the -DPACK_ARRAY, -DPACK_POINTER, and -DPACK_MEMCPY
 options can make for faster parallel FFTs on some platforms.  The
 -DPACK_ARRAY setting is the default.  See the "compute
 fft/grid"_compute_fft_grid.html command for info about FFTs.  See Step
-6 below for info about building SPPARKS with an FFT library.
+6 below for info about building SPARTA with an FFT library.
 
 [Step 5]
 
@@ -289,11 +293,23 @@ package in your build, you can also leave the 3 variables blank.
 
 Otherwise, select which kinds of FFTs to use as part of the FFT_INC
 setting by a switch of the form -DFFT_XXX. 
-Recommended values for XXX
-are: MKL or FFTW3.  FFTW2 and NONE are supported as legacy options.
-Selecting -DFFT_FFTW will use the FFTW3 library and -DFFT_NONE will
-use the KISS library described above.
-described above.
+Available values for XXX
+are: MKL or FFTW3.
+Selecting -DFFT_FFTW will use the FFTW3 library.
+
+Similarly a separate FFT library can be specified for KOKKOS package.
+By default, SPARTA will use a Kokkos version of the open-source "KISS
+FFT library"_http://kissfft.sf.net, which is included in the SPARTA
+distribution. Note that using the KISS FFT library on GPUs may give
+suboptimal performance. Other options can be specified using the form
+-DFFT_KOKKOS_XXX. Available values for XXX when using Kokkos are: CUFFT,
+HIPFFT, MKL or FFTW3. When using the Kokkos CUDA backend, either CUFFT
+or KISS must be used. When using the Kokkos HIP backend, either HIPFFT
+or KISS must be used. When using the Kokkos OpenMP or Serial backend,
+either MKL, FFTW3, or KISS must be used. The CUFFT option specifies the
+"cuFFT library"_https://developer.nvidia.com/cufft from NVIDIA. The
+HIPFFT option specifies the "rocFFT
+library"_https://rocm.docs.amd.com/projects/rocFFT/en/latest/ from AMD.
 
 You may also need to set the FFT_INC, FFT_PATH, and FFT_LIB variables,
 so the compiler and linker can find the needed FFT header and library
@@ -305,16 +321,9 @@ trouble finding.
 
 FFTW is a fast, portable library that should also work on any
 platform.  You can download it from
-"www.fftw.org"_http://www.fftw.org.  Both the legacy version 2.1.X and
-the newer 3.X versions are supported as -DFFT_FFTW2 or -DFFT_FFTW3.
+"www.fftw.org"_http://www.fftw.org. The 3.X versions are supported
+as -DFFT_FFTW3.
 Building FFTW for your box should be as simple as ./configure; make.
-Note that on some platforms FFTW2 has been pre-installed, and uses
-renamed files indicating the precision it was compiled with,
-e.g. sfftw.h, or dfftw.h instead of fftw.h.  In this case, you can
-specify an additional define variable for FFT_INC called -DFFTW_SIZE,
-which will select the correct include file.  In this case, for FFT_LIB
-you must also manually specify the correct library, namely -lsfftw or
--ldfftw.
 
 The FFT_INC variable also allows for a -DFFT_SINGLE setting that will
 use single-precision FFTs, which can speed-up the calculation,
@@ -378,7 +387,7 @@ You should get the executable spa_foo when the build is complete.
 [Step 0]
 
 Please review https://github.com/sparta/sparta/blob/master/BUILD_CMAKE.md and ensure that
-CMake version 3.10.0 or greater is installed:
+CMake version 3.12.0 or greater is installed:
 
 which cmake
 which cmake3
@@ -529,7 +538,7 @@ Using one of the -DPACK_ARRAY, -DPACK_POINTER, and -DPACK_MEMCPY
 options can make for faster parallel FFTs on some platforms.  The
 -DPACK_ARRAY setting is the default.  See the "compute
 fft/grid"_compute_fft_grid.html command for info about FFTs.  See STEP
-??? below for info about building SPPARKS with an FFT library.
+7 below for info about building SPARTA with an FFT library.
 
 [Step 5]
 
@@ -594,14 +603,35 @@ searched for unless you explicitly disable PKG_MPI_STUBS in the preset file.
 If you'd like to use a custom MPI installation or cmake is not locating the MPI
 installation you've selected via the module command or package manager, try
 export MPI_ROOT=/path/to/mpi/install before running cmake. Otherwise, please see
-https://cmake.org/cmake/help/v3.10/module/FindMPI.html#variables-for-locating-mpi.
-Note that this documentation link is for CMake version 3.10.
+https://cmake.org/cmake/help/v3.12/module/FindMPI.html#variables-for-locating-mpi.
+Note that this documentation link is for CMake version 3.12.
 
 [Step 7]
 
-You may select between 3 thiry party libraries (TPL) for FFT which SPARTA uses when
-configured with cmake -DFFT={FFTW2,FFTW3,MKL}. SPARTA also provides a FFT
-package which can be selected with cmake -DPKG_FFT=ON.
+When the SPARTA FFT package is enabled with cmake -DPKG_FFT=ON, you may select
+between 3 thiry party libraries (TPLs) for 1d FFTs, which SPARTA uses when
+configured with cmake -DFFT={FFTW3,MKL,KISS}.
+
+By default SPARTA will use the open-source "KISS FFT
+library"_http://kissfft.sf.net, which is included in the SPARTA distribution.
+This library is portable to all platforms and for typical SPARTA simulations is
+almost as fast as FFTW or vendor optimized libraries.
+
+Similarly when using the KOKKOS package, you may select between 5 TPLs for FFT
+which SPARTA uses when configured with cmake
+-DFFT_KOKKOS={CUFFT,HIPFFT,FFTW3,MKL,KISS}. This requires enabling the SPARTA
+FFT package which can be selected with cmake -DPKG_FFT=ON.
+
+By default, SPARTA will use a Kokkos version of the open-source "KISS FFT
+library"_http://kissfft.sf.net, which is included in the SPARTA distribution.
+Note that using the KISS FFT library on GPUs may give suboptimal performance.
+Other options for -DFFT_KOKKOS are CUFFT, HIPFFT, MKL or FFTW3. When using the
+Kokkos CUDA backend, either CUFFT or KISS must be used. When using the Kokkos
+HIP backend, either HIPFFT or KISS must be used. When using the Kokkos OpenMP
+or Serial backend, either MKL, FFTW3, or KISS must be used. The CUFFT option
+specifies the "cuFFT library"_https://developer.nvidia.com/cufft from NVIDIA.
+The HIPFFT option specifies the "rocFFT
+library"_https://rocm.docs.amd.com/projects/rocFFT/en/latest/ from AMD.
 
 You may need to install the FFT TPL you're interested in using. If you're on a
 cluster or supercomputer, use module before running cmake so that cmake finds
@@ -647,9 +677,9 @@ or:
 cmake -DBUILD_PNG=ON /path/to/sparta/cmake :pre
 
 If you'd like to use a custom jpeg or png installation, please see 
-https://cmake.org/cmake/help/v3.10/module/FindJPEG.html or
-https://cmake.org/cmake/help/v3.10/module/FindPNG.html. Note that these
-documentation links are for CMake version 3.10.
+https://cmake.org/cmake/help/v3.12/module/FindJPEG.html or
+https://cmake.org/cmake/help/v3.12/module/FindPNG.html. Note that these
+documentation links are for CMake version 3.12.
 
 [Step 9]
 
@@ -775,7 +805,7 @@ standard Linux make or CMake, just as you would on any Linux box.
 You can also import the *.cpp and *.h files into Microsoft Visual
 Studio.  If someone does this and wants to provide project files or
 other Windows build tips, please send them to the
-"developers"_http://sparta.sandia.gov/authors.html and we will include
+"developers"_https://sparta.github.io/authors.html and we will include
 them in the distribution.
 
 :line
@@ -1223,7 +1253,7 @@ mpirun -np 4 spa_g++ < in.free :pre
 See "this page"_bench for timings for this and the other benchmarks on
 various platforms.
 
-:link(bench,http://sparta.sandia.gov/bench.html)
+:link(bench,https://sparta.github.io/bench.html)
 
 The screen output from SPARTA is described in the next section.  As it
 runs, SPARTA also writes a log.sparta file with the same information.

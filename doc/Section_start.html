@@ -1,5 +1,5 @@
 <HTML>
-<CENTER><A HREF = "Section_intro.html">Previous Section</A> - <A HREF = "http://sparta.sandia.gov">SPARTA WWW Site</A> - <A HREF = "Manual.html">SPARTA Documentation</A> - <A HREF = "Section_commands.html#comm">SPARTA Commands</A> - <A HREF = "Section_commands.html">Next Section</A> 
+<CENTER><A HREF = "Section_intro.html">Previous Section</A> - <A HREF = "https://sparta.github.io">SPARTA WWW Site</A> - <A HREF = "Manual.html">SPARTA Documentation</A> - <A HREF = "Section_commands.html#comm">SPARTA Commands</A> - <A HREF = "Section_commands.html">Next Section</A> 
 </CENTER>
 
 
@@ -75,15 +75,19 @@ used (MPI, JPEG).
 cmake, makefiles, or building codes on a Linux platform, or running an MPI
 job on your machine, please find a local expert to help you.
 </P>
+<P>SPARTA requires that the compiler supports C++11. SPARTA will throw an error
+if this is not the case. If you are building SPARTA with Kokkos, the compiler
+must support C++17.
+</P>
 <P>If you have a build problem that you are convinced is a SPARTA issue
 (e.g. the compiler complains about a line of SPARTA source code), then
 please send an email to the
-<A HREF = "http://sparta.sandia.gov/authors.html">developers</A>.
+<A HREF = "https://sparta.github.io/authors.html">developers</A>.
 </P>
 <P>If you succeed in building SPARTA on a new kind of machine, for which
 there isn't a similar Makefile in the src/MAKE directory or .cmake file
 in cmake/presets, send it to the 
-<A HREF = "http://sparta.sandia.gov/authors.html">developers</A> and we'll include it in future SPARTA releases.
+<A HREF = "https://sparta.github.io/authors.html">developers</A> and we'll include it in future SPARTA releases.
 </P>
 <HR>
 
@@ -227,7 +231,7 @@ will use that data type.
 options can make for faster parallel FFTs on some platforms.  The
 -DPACK_ARRAY setting is the default.  See the <A HREF = "compute_fft_grid.html">compute
 fft/grid</A> command for info about FFTs.  See Step
-6 below for info about building SPPARKS with an FFT library.
+6 below for info about building SPARTA with an FFT library.
 </P>
 <P><B>Step 5</B>
 </P>
@@ -294,11 +298,23 @@ package in your build, you can also leave the 3 variables blank.
 </P>
 <P>Otherwise, select which kinds of FFTs to use as part of the FFT_INC
 setting by a switch of the form -DFFT_XXX. 
-Recommended values for XXX
-are: MKL or FFTW3.  FFTW2 and NONE are supported as legacy options.
-Selecting -DFFT_FFTW will use the FFTW3 library and -DFFT_NONE will
-use the KISS library described above.
-described above.
+Available values for XXX
+are: MKL or FFTW3.
+Selecting -DFFT_FFTW will use the FFTW3 library.
+</P>
+<P>Similarly a separate FFT library can be specified for KOKKOS package.
+By default, SPARTA will use a Kokkos version of the open-source <A HREF = "http://kissfft.sf.net">KISS
+FFT library</A>, which is included in the SPARTA
+distribution. Note that using the KISS FFT library on GPUs may give
+suboptimal performance. Other options can be specified using the form
+-DFFT_KOKKOS_XXX. Available values for XXX when using Kokkos are: CUFFT,
+HIPFFT, MKL or FFTW3. When using the Kokkos CUDA backend, either CUFFT
+or KISS must be used. When using the Kokkos HIP backend, either HIPFFT
+or KISS must be used. When using the Kokkos OpenMP or Serial backend,
+either MKL, FFTW3, or KISS must be used. The CUFFT option specifies the
+<A HREF = "https://developer.nvidia.com/cufft">cuFFT library</A> from NVIDIA. The
+HIPFFT option specifies the <A HREF = "https://rocm.docs.amd.com/projects/rocFFT/en/latest/">rocFFT
+library</A> from AMD.
 </P>
 <P>You may also need to set the FFT_INC, FFT_PATH, and FFT_LIB variables,
 so the compiler and linker can find the needed FFT header and library
@@ -310,16 +326,9 @@ trouble finding.
 </P>
 <P>FFTW is a fast, portable library that should also work on any
 platform.  You can download it from
-<A HREF = "http://www.fftw.org">www.fftw.org</A>.  Both the legacy version 2.1.X and
-the newer 3.X versions are supported as -DFFT_FFTW2 or -DFFT_FFTW3.
+<A HREF = "http://www.fftw.org">www.fftw.org</A>. The 3.X versions are supported
+as -DFFT_FFTW3.
 Building FFTW for your box should be as simple as ./configure; make.
-Note that on some platforms FFTW2 has been pre-installed, and uses
-renamed files indicating the precision it was compiled with,
-e.g. sfftw.h, or dfftw.h instead of fftw.h.  In this case, you can
-specify an additional define variable for FFT_INC called -DFFTW_SIZE,
-which will select the correct include file.  In this case, for FFT_LIB
-you must also manually specify the correct library, namely -lsfftw or
--ldfftw.
 </P>
 <P>The FFT_INC variable also allows for a -DFFT_SINGLE setting that will
 use single-precision FFTs, which can speed-up the calculation,
@@ -383,7 +392,7 @@ is the number of cores the build runs on.
 <P><B>Step 0</B>
 </P>
 <P>Please review https://github.com/sparta/sparta/blob/master/BUILD_CMAKE.md and ensure that
-CMake version 3.10.0 or greater is installed:
+CMake version 3.12.0 or greater is installed:
 </P>
 <PRE>which cmake
 which cmake3
@@ -531,7 +540,7 @@ will use that data type.
 options can make for faster parallel FFTs on some platforms.  The
 -DPACK_ARRAY setting is the default.  See the <A HREF = "compute_fft_grid.html">compute
 fft/grid</A> command for info about FFTs.  See STEP
-??? below for info about building SPPARKS with an FFT library.
+7 below for info about building SPARTA with an FFT library.
 </P>
 <P><B>Step 5</B>
 </P>
@@ -596,14 +605,35 @@ searched for unless you explicitly disable PKG_MPI_STUBS in the preset file.
 <P>If you'd like to use a custom MPI installation or cmake is not locating the MPI
 installation you've selected via the module command or package manager, try
 export MPI_ROOT=/path/to/mpi/install before running cmake. Otherwise, please see
-https://cmake.org/cmake/help/v3.10/module/FindMPI.html#variables-for-locating-mpi.
-Note that this documentation link is for CMake version 3.10.
+https://cmake.org/cmake/help/v3.12/module/FindMPI.html#variables-for-locating-mpi.
+Note that this documentation link is for CMake version 3.12.
 </P>
 <P><B>Step 7</B>
 </P>
-<P>You may select between 3 thiry party libraries (TPL) for FFT which SPARTA uses when
-configured with cmake -DFFT=<I>FFTW2,FFTW3,MKL</I>. SPARTA also provides a FFT
-package which can be selected with cmake -DPKG_FFT=ON.
+<P>When the SPARTA FFT package is enabled with cmake -DPKG_FFT=ON, you may select
+between 3 thiry party libraries (TPLs) for 1d FFTs, which SPARTA uses when
+configured with cmake -DFFT=<I>FFTW3,MKL,KISS</I>.
+</P>
+<P>By default SPARTA will use the open-source <A HREF = "http://kissfft.sf.net">KISS FFT
+library</A>, which is included in the SPARTA distribution.
+This library is portable to all platforms and for typical SPARTA simulations is
+almost as fast as FFTW or vendor optimized libraries.
+</P>
+<P>Similarly when using the KOKKOS package, you may select between 5 TPLs for FFT
+which SPARTA uses when configured with cmake
+-DFFT_KOKKOS=<I>CUFFT,HIPFFT,FFTW3,MKL,KISS</I>. This requires enabling the SPARTA
+FFT package which can be selected with cmake -DPKG_FFT=ON.
+</P>
+<P>By default, SPARTA will use a Kokkos version of the open-source <A HREF = "http://kissfft.sf.net">KISS FFT
+library</A>, which is included in the SPARTA distribution.
+Note that using the KISS FFT library on GPUs may give suboptimal performance.
+Other options for -DFFT_KOKKOS are CUFFT, HIPFFT, MKL or FFTW3. When using the
+Kokkos CUDA backend, either CUFFT or KISS must be used. When using the Kokkos
+HIP backend, either HIPFFT or KISS must be used. When using the Kokkos OpenMP
+or Serial backend, either MKL, FFTW3, or KISS must be used. The CUFFT option
+specifies the <A HREF = "https://developer.nvidia.com/cufft">cuFFT library</A> from NVIDIA.
+The HIPFFT option specifies the <A HREF = "https://rocm.docs.amd.com/projects/rocFFT/en/latest/">rocFFT
+library</A> from AMD.
 </P>
 <P>You may need to install the FFT TPL you're interested in using. If you're on a
 cluster or supercomputer, use module before running cmake so that cmake finds
@@ -649,9 +679,9 @@ via the <A HREF = "dump_image.html">dump image</A> command. To select a TPL, use
 <PRE>cmake -DBUILD_PNG=ON /path/to/sparta/cmake 
 </PRE>
 <P>If you'd like to use a custom jpeg or png installation, please see 
-https://cmake.org/cmake/help/v3.10/module/FindJPEG.html or
-https://cmake.org/cmake/help/v3.10/module/FindPNG.html. Note that these
-documentation links are for CMake version 3.10.
+https://cmake.org/cmake/help/v3.12/module/FindJPEG.html or
+https://cmake.org/cmake/help/v3.12/module/FindPNG.html. Note that these
+documentation links are for CMake version 3.12.
 </P>
 <P><B>Step 9</B>
 </P>
@@ -776,7 +806,7 @@ standard Linux make or CMake, just as you would on any Linux box.
 <P>You can also import the *.cpp and *.h files into Microsoft Visual
 Studio.  If someone does this and wants to provide project files or
 other Windows build tips, please send them to the
-<A HREF = "http://sparta.sandia.gov/authors.html">developers</A> and we will include
+<A HREF = "https://sparta.github.io/authors.html">developers</A> and we will include
 them in the distribution.
 </P>
 <HR>
@@ -1205,7 +1235,7 @@ cp src/spa_g++ /path/to/bench
 cd /path/to/bench
 mpirun -np 4 spa_g++ < in.free 
 </PRE>
-<P>See <A HREF = "http://sparta.sandia.gov/bench.html">this page</A> for timings for this and the other benchmarks on
+<P>See <A HREF = "https://sparta.github.io/bench.html">this page</A> for timings for this and the other benchmarks on
 various platforms.
 </P>
 

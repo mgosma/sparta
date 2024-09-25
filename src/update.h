@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -28,6 +28,10 @@ class Update : protected Pointers {
   bigint firststep,laststep;      // 1st & last step of this run
   bigint beginstep,endstep;       // 1st and last step of multiple runs
   int first_update;               // 0 before initial update, 1 after
+
+  double time;                    // simulation time at time_last_update
+  bigint time_last_update;        // last timestep that time was updated
+
   double dt;                      // timestep size
 
   char *unit_style;      // style of units used throughout simulation
@@ -38,6 +42,7 @@ class Update : protected Pointers {
   double nrho;           // number density of background gas
   double vstream[3];     // streaming velocity of background gas
   double temp_thermal;   // thermal temperature of background gas
+  int optmove_flag;      // global optmove option set
 
   int fstyle;            // external field: NOFIELD, CFIELD, PFIELD, GFIELD
   double field[3];       // constant external field
@@ -87,7 +92,9 @@ class Update : protected Pointers {
 
   double rcblo[3],rcbhi[3];    // debug info from RCB for dump image
 
-  // this info accessed by SurfReactAdsorb to do on-surface reaction tallying
+  // this info accessed by other classe to perform surface tallying
+  // by SurfReactAdsorb for on-surface reactions
+  // by FixEmitSurf for particles emitted from surfs
 
   int nsurf_tally;         // # of Cmp tallying surf bounce info this step
   int nboundary_tally;     // # of Cmp tallying boundary bounce info this step
@@ -166,7 +173,7 @@ class Update : protected Pointers {
 
   typedef void (Update::*FnPtr)();
   FnPtr moveptr;             // ptr to move method
-  template < int, int > void move();
+  template < int, int, int > void move();
 
   int perturbflag;
   typedef void (Update::*FnPtr2)(int, int, double, double *, double *);

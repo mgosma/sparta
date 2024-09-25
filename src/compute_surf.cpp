@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -14,6 +14,8 @@
 
 #include "string.h"
 #include "compute_surf.h"
+#include "surf_react.h"
+#include "style_surf_react.h"
 #include "particle.h"
 #include "mixture.h"
 #include "surf.h"
@@ -27,8 +29,8 @@
 
 using namespace SPARTA_NS;
 
-enum{NUM,NUMWT,NFLUX,MFLUX,FX,FY,FZ,PRESS,XPRESS,YPRESS,ZPRESS,
-     XSHEAR,YSHEAR,ZSHEAR,KE,EROT,EVIB,ETOT};
+enum{NUM,NUMWT,NFLUX,NFLUXIN,MFLUX,MFLUXIN,FX,FY,FZ,PRESS,XPRESS,YPRESS,ZPRESS,
+     XSHEAR,YSHEAR,ZSHEAR,KE,EROT,EVIB,ECHEM,ETOT};
 
 #define DELTA 4096
 
@@ -50,13 +52,17 @@ ComputeSurf::ComputeSurf(SPARTA *sparta, int narg, char **arg) :
   nvalue = narg - 4;
   which = new int[nvalue];
 
+  // process input values
+
   nvalue = 0;
   int iarg = 4;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"n") == 0) which[nvalue++] = NUM;
     else if (strcmp(arg[iarg],"nwt") == 0) which[nvalue++] = NUMWT;
     else if (strcmp(arg[iarg],"nflux") == 0) which[nvalue++] = NFLUX;
+    else if (strcmp(arg[iarg],"nflux_incident") == 0) which[nvalue++] = NFLUXIN;
     else if (strcmp(arg[iarg],"mflux") == 0) which[nvalue++] = MFLUX;
+    else if (strcmp(arg[iarg],"mflux_incident") == 0) which[nvalue++] = MFLUXIN;
     else if (strcmp(arg[iarg],"fx") == 0) which[nvalue++] = FX;
     else if (strcmp(arg[iarg],"fy") == 0) which[nvalue++] = FY;
     else if (strcmp(arg[iarg],"fz") == 0) which[nvalue++] = FZ;
@@ -70,10 +76,28 @@ ComputeSurf::ComputeSurf(SPARTA *sparta, int narg, char **arg) :
     else if (strcmp(arg[iarg],"ke") == 0) which[nvalue++] = KE;
     else if (strcmp(arg[iarg],"erot") == 0) which[nvalue++] = EROT;
     else if (strcmp(arg[iarg],"evib") == 0) which[nvalue++] = EVIB;
+    else if (strcmp(arg[iarg],"echem") == 0) which[nvalue++] = ECHEM;
     else if (strcmp(arg[iarg],"etot") == 0) which[nvalue++] = ETOT;
-    else error->all(FLERR,"Illegal compute surf command");
+    else break;
     iarg++;
   }
+
+  // process optional keywords
+
+  normarea = 1;
+
+  while (iarg < narg) {
+    if (strcmp(arg[iarg],"norm") == 0) {
+      if (iarg+2 > narg)
+        error->all(FLERR,"Invalid compute surf optional keyword");
+      if (strcmp(arg[iarg+1],"flow") == 0) normarea = 0;
+      else if (strcmp(arg[iarg+1],"flux") == 0) normarea = 1;
+      else error->all(FLERR,"Invalid compute surf optional keyword");
+      iarg += 2;
+    } else error->all(FLERR,"Invalid compute surf value or optional keyword");
+  }
+
+  // setup
 
   ntotal = ngroup*nvalue;
 
@@ -147,6 +171,7 @@ void ComputeSurf::init()
    distributed: nlocal + nghost
    called by init before each run (in case dt or fnum has changed)
    called whenever grid changes
+     NOTE: only needed in this case when surfs are distributed ??
 ------------------------------------------------------------------------- */
 
 void ComputeSurf::init_normflux()
@@ -157,6 +182,8 @@ void ComputeSurf::init_normflux()
   nfactor_inverse = 1.0/nfactor;
 
   // normflux for all surface elements, based on area and timestep size
+  // if normarea = 0, area is not included in flux
+  //   mass/eng fluxes (mass/area/time) becomes mass/eng flows (mass/time)
   // nsurf = all explicit surfs in this procs grid cells
   // store inverse, so can multipy by scale factor when tally
   // store for all surf elements, b/c don't know which ones I need to normalize
@@ -169,7 +196,8 @@ void ComputeSurf::init_normflux()
   double tmp;
 
   for (int i = 0; i < nsurf; i++) {
-    if (dim == 3) normflux[i] = surf->tri_size(i,tmp);
+    if (!normarea) normflux[i] = 1.0;
+    else if (dim == 3) normflux[i] = surf->tri_size(i,tmp);
     else if (axisymmetric) normflux[i] = surf->axi_line_size(i);
     else normflux[i] = surf->line_size(i);
     normflux[i] *= nfactor;
@@ -217,6 +245,12 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
                              Particle::OnePart *iorig,
                              Particle::OnePart *ip, Particle::OnePart *jp)
 {
+  // skip if no original particle and a reaction is taking place
+  //   called by SurfReactAdsorb for on-surf reaction
+  // FixEmitSurf also calls with no original particle but no reaction
+
+  if (!iorig && reaction) return;
+
   // skip if isurf not in surface group
 
   if (dim == 2) {
@@ -225,27 +259,39 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
     if (!(tris[isurf].mask & groupbit)) return;
   }
 
-  // skip if species not in mixture group
+  // skip if colliding/emitting species not in mixture group
 
-  int origspecies = iorig->ispecies;
-  int igroup = particle->mixture[imix]->species2group[origspecies];
-  if (igroup < 0) return;
+  int origspecies = -1;
+  int igroup;
+  if (iorig) {
+    origspecies = iorig->ispecies;
+    igroup = particle->mixture[imix]->species2group[origspecies];
+    if (igroup < 0) return;
+  } else {
+    igroup = particle->mixture[imix]->species2group[ip->ispecies];
+    if (igroup < 0) return;
+  }
 
   // itally = tally index of isurf
   // if 1st particle hitting isurf, add surf ID to hash
   // grow tally list if needed
 
-  int itally,transparent;
+  int itally,transparent,isr;
   double *vec;
 
   surfint surfID;
   if (dim == 2) {
     surfID = lines[isurf].id;
     transparent = lines[isurf].transparent;
+    isr = lines[isurf].isr;
   } else {
     surfID = tris[isurf].id;
     transparent = tris[isurf].transparent;
+    isr = tris[isurf].isr;
   }
+
+  double r_coeff;
+  SurfReact *sr;
 
   if (hash->find(surfID) != hash->end()) itally = (*hash)[surfID];
   else {
@@ -268,20 +314,31 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
   // if surf is transparent, all flux tallying is for incident particle only
 
   double vsqpre,ivsqpost,jvsqpost;
-  double ierot,jerot,ievib,jevib,iother,jother,otherpre,etot;
+  double oerot,ierot,jerot,oevib,ievib,jevib,iother,jother,otherpre,etot;
   double pdelta[3],pnorm[3],ptang[3],pdelta_force[3];
 
   double *norm;
   if (dim == 2) norm = lines[isurf].norm;
   else norm = tris[isurf].norm;
 
-  double origmass,imass,jmass;
-  if (weightflag) weight = iorig->weight;
-  origmass = particle->species[origspecies].mass * weight;
+  double origmass = 0.0;
+  double imass,jmass;
+  if (weightflag && iorig) weight = iorig->weight;
+  else if (weightflag) weight = ip->weight;
+  if (origspecies >= 0) origmass = particle->species[origspecies].mass * weight;
   if (ip) imass = particle->species[ip->ispecies].mass * weight;
   if (jp) jmass = particle->species[jp->ispecies].mass * weight;
 
-  double *vorig = iorig->v;
+  double *vorig = NULL;
+  if (iorig) {
+    vorig = iorig->v;
+    oerot = iorig->erot;
+    oevib = iorig->evib;
+  } else {
+    oerot = 0.0;
+    oevib = 0.0;
+  }
+
   double mvv2e = update->mvv2e;
 
   vec = array_surf_tally[itally];
@@ -291,7 +348,11 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
   int tflag = 0;
 
   for (int m = 0; m < nvalue; m++) {
+
     switch (which[m]) {
+
+    // counts and fluxes
+
     case NUM:
       vec[k++] += 1.0;
       break;
@@ -299,25 +360,37 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
       vec[k++] += weight;
       break;
     case NFLUX:
-      vec[k] += weight * fluxscale;
+      if (iorig) vec[k] += weight * fluxscale;
       if (!transparent) {
         if (ip) vec[k] -= weight * fluxscale;
         if (jp) vec[k] -= weight * fluxscale;
       }
       k++;
       break;
+    case NFLUXIN:
+      vec[k] += weight * fluxscale;
+      k++;
+      break;
     case MFLUX:
-      vec[k] += origmass * fluxscale;
+      if (iorig) vec[k] += origmass * fluxscale;
       if (!transparent) {
         if (ip) vec[k] -= imass * fluxscale;
         if (jp) vec[k] -= jmass * fluxscale;
       }
       k++;
       break;
+    case MFLUXIN:
+      vec[k] += origmass * fluxscale;
+      k++;
+      break;
+
+    // forces
+
     case FX:
       if (!fflag) {
         fflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta_force);
+        pdelta_force[0] = pdelta_force[1] = pdelta_force[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta_force);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta_force);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta_force);
       }
@@ -326,7 +399,8 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
     case FY:
       if (!fflag) {
         fflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta_force);
+        pdelta_force[0] = pdelta_force[1] = pdelta_force[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta_force);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta_force);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta_force);
       }
@@ -335,22 +409,31 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
     case FZ:
       if (!fflag) {
         fflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta_force);
+        pdelta_force[0] = pdelta_force[1] = pdelta_force[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta_force);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta_force);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta_force);
       }
       vec[k++] -= pdelta_force[2] * nfactor_inverse;
       break;
+
+    // pressures
+
     case PRESS:
-      MathExtra::scale3(-origmass,vorig,pdelta);
-      if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
-      if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
+      if (!nflag && !tflag) {
+        pdelta[0] = pdelta[1] = pdelta[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta);
+        if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
+        if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
+      }
       vec[k++] += MathExtra::dot3(pdelta,norm) * fluxscale;
       break;
+
     case XPRESS:
       if (!nflag) {
         nflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta);
+        pdelta[0] = pdelta[1] = pdelta[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
         MathExtra::scale3(MathExtra::dot3(pdelta,norm),norm,pnorm);
@@ -360,7 +443,8 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
     case YPRESS:
       if (!nflag) {
         nflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta);
+        pdelta[0] = pdelta[1] = pdelta[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
         MathExtra::scale3(MathExtra::dot3(pdelta,norm),norm,pnorm);
@@ -370,17 +454,20 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
     case ZPRESS:
       if (!nflag) {
         nflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta);
+        pdelta[0] = pdelta[1] = pdelta[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
         MathExtra::scale3(MathExtra::dot3(pdelta,norm),norm,pnorm);
       }
       vec[k++] -= pnorm[2] * fluxscale;
       break;
+
     case XSHEAR:
       if (!tflag) {
         tflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta);
+        pdelta[0] = pdelta[1] = pdelta[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
         MathExtra::scale3(MathExtra::dot3(pdelta,norm),norm,pnorm);
@@ -391,7 +478,8 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
     case YSHEAR:
       if (!tflag) {
         tflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta);
+        pdelta[0] = pdelta[1] = pdelta[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
         MathExtra::scale3(MathExtra::dot3(pdelta,norm),norm,pnorm);
@@ -402,7 +490,8 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
     case ZSHEAR:
       if (!tflag) {
         tflag = 1;
-        MathExtra::scale3(-origmass,vorig,pdelta);
+        pdelta[0] = pdelta[1] = pdelta[2] = 0.0;
+        if (iorig) MathExtra::axpy3(-origmass,vorig,pdelta);
         if (ip) MathExtra::axpy3(imass,ip->v,pdelta);
         if (jp) MathExtra::axpy3(jmass,jp->v,pdelta);
         MathExtra::scale3(MathExtra::dot3(pdelta,norm),norm,pnorm);
@@ -410,8 +499,12 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
       }
       vec[k++] -= ptang[2] * fluxscale;
       break;
+
+    // energies
+
     case KE:
-      vsqpre = origmass * MathExtra::lensq3(vorig);
+      if (iorig) vsqpre = origmass * MathExtra::lensq3(vorig);
+      else vsqpre = 0.0;
       if (ip) ivsqpost = imass * MathExtra::lensq3(ip->v);
       else ivsqpost = 0.0;
       if (jp) jvsqpost = jmass * MathExtra::lensq3(jp->v);
@@ -427,9 +520,9 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
       if (jp) jerot = jp->erot;
       else jerot = 0.0;
       if (transparent)
-        vec[k++] += weight * iorig->erot * fluxscale;
+        vec[k++] += weight * oerot * fluxscale;
       else
-        vec[k++] -= weight * (ierot + jerot - iorig->erot) * fluxscale;
+        vec[k++] -= weight * (ierot + jerot - oerot) * fluxscale;
       break;
     case EVIB:
       if (ip) ievib = ip->evib;
@@ -437,26 +530,40 @@ void ComputeSurf::surf_tally(int isurf, int icell, int reaction,
       if (jp) jevib = jp->evib;
       else jevib = 0.0;
       if (transparent)
-        vec[k++] += weight * iorig->evib * fluxscale;
+        vec[k++] += weight * oevib * fluxscale;
       else
-        vec[k++] -= weight * (ievib + jevib - iorig->evib) * fluxscale;
+        vec[k++] -= weight * (ievib + jevib - oevib) * fluxscale;
+      break;
+    case ECHEM:
+      if (reaction && !transparent) {
+        sr = surf->sr[isr];
+        r_coeff = sr->reaction_coeff(reaction-1);
+        vec[k++] += weight * r_coeff * fluxscale;
+      }
       break;
     case ETOT:
-      vsqpre = origmass * MathExtra::lensq3(vorig);
-      otherpre = iorig->erot + iorig->evib;
+      if (iorig) vsqpre = origmass * MathExtra::lensq3(vorig);
+      else vsqpre = 0.0;
+      otherpre = oerot + oevib;
       if (ip) {
-	ivsqpost = imass * MathExtra::lensq3(ip->v);
-	iother = ip->erot + ip->evib;
+        ivsqpost = imass * MathExtra::lensq3(ip->v);
+        iother = ip->erot + ip->evib;
       } else ivsqpost = iother = 0.0;
       if (jp) {
-	jvsqpost = jmass * MathExtra::lensq3(jp->v);
-	jother = jp->erot + jp->evib;
+        jvsqpost = jmass * MathExtra::lensq3(jp->v);
+        jother = jp->erot + jp->evib;
       } else jvsqpost = jother = 0.0;
       if (transparent)
         etot = -0.5*mvv2e*vsqpre - weight*otherpre;
-      else
+      else {
         etot = 0.5*mvv2e*(ivsqpost + jvsqpost - vsqpre) +
           weight * (iother + jother - otherpre);
+        if (reaction) {
+          sr = surf->sr[isr];
+          r_coeff = sr->reaction_coeff(reaction-1);
+          etot -= weight * r_coeff;
+        }
+      }
       vec[k++] -= etot * fluxscale;
       break;
     }
@@ -492,25 +599,9 @@ void ComputeSurf::post_process_surf()
     memory->create(array_surf,maxsurf,ntotal,"surf:array_surf");
   }
 
-  // zero array_surf
-  // NOTE: is this needed if collate zeroes ?
-
-  int i,j;
-  for (i = 0; i < nown; i++)
-    for (j = 0; j < ntotal; j++)
-      array_surf[i][j] = 0.0;
-
   // collate entire array of results
 
   surf->collate_array(ntally,ntotal,tally2surf,array_surf_tally,array_surf);
-
-  /*
-  if (array_surf_tally)
-    surf->collate_vector(ntally,tally2surf,
-                         &array_surf_tally[0][index-1],ntotal,vector_surf);
-  else
-    surf->collate_vector(ntally,tally2surf,NULL,ntotal,vector_surf);
-  */
 }
 
 

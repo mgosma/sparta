@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -29,18 +29,15 @@ namespace SPARTA_NS {
 class SurfCollideDiffuse : public SurfCollide {
  public:
   SurfCollideDiffuse(class SPARTA *, int, char **);
-  SurfCollideDiffuse(class SPARTA *sparta) : SurfCollide(sparta) {}
-  ~SurfCollideDiffuse();
+  SurfCollideDiffuse(class SPARTA *sparta) : SurfCollide(sparta) {} // needed Kokkos
+  virtual ~SurfCollideDiffuse();
   virtual void init();
   Particle::OnePart *collide(Particle::OnePart *&, double &,
                              int, double *, int, int &);
   void wrapper(Particle::OnePart *, double *, int *, double*);
   void flags_and_coeffs(int *, double *);
 
-  void dynamic();
-
  protected:
-  double twall;              // surface temperature
   double acc;                // surface accomodation coeff
   double vx,vy,vz;           // translational velocity of surface
   double wx,wy,wz;           // angular velocity of surface
@@ -48,16 +45,8 @@ class SurfCollideDiffuse : public SurfCollide {
   int tflag,rflag;           // flags for translation and rotation
   int trflag;                // 1 if either tflag or rflag is set
 
-  int tmode;                 // Twall is NUMERIC,VARIABLE,CUSTOM
-  char *tstr;                // temperature variable name (NULL if constant)
-  int tvar;                  // index of equal-style variable
-  double *tvector;           // custom per-surf temperature vector
-
   Surf::Line *lines;
   Surf::Tri *tris;
-
-  int distributed,implicit;  // Surf settings
-  int nsurf;                 // nown or nlocal
 
   double vstream[3];
   class RanKnuth *random;     // RNG for particle reflection

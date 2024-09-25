@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -128,13 +128,15 @@ void FixFieldGrid::init()
   }
 
   bigint nbytes = (bigint) grid->nlocal * size_per_grid_cols;
-  memset(&array_grid[0][0],0,nbytes*sizeof(double));
+  if (nbytes) memset(&array_grid[0][0],0,nbytes*sizeof(double));
 }
 
 /* ---------------------------------------------------------------------- */
 
 void FixFieldGrid::compute_field()
 {
+  if (!grid->nlocal) return;
+
   // reallocate array_grid if necessary
 
   if (grid->nlocal > maxgrid) {

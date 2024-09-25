@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -18,6 +18,7 @@
 #include "react_tce.h"
 #include "particle.h"
 #include "collide.h"
+#include "update.h"
 #include "update.h"
 #include "random_knuth.h"
 #include "error.h"
@@ -281,6 +282,9 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
         break;
       }
 
+    if (react_prob < 0) error->warning(FLERR,"Negative reaction probability");
+    else if (react_prob > 1) error->warning(FLERR,"Reaction probability greater than 1");
+
     default:
       error->one(FLERR,"Unknown outcome in reaction");
       break;
@@ -336,7 +340,10 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
           //cout << "Recob product: " << r->products[0] << " Energy: " << post_etotal << endl;
       }
 
-      return 1;
+        return 1;
+      } else {
+        return 0;
+      }
     }
   }
 

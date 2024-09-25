@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    SPARTA - Stochastic PArallel Rarefied-gas Time-accurate Analyzer
-   http://sparta.sandia.gov
-   Steve Plimpton, sjplimp@sandia.gov, Michael Gallis, magalli@sandia.gov
+   http://sparta.github.io
+   Steve Plimpton, sjplimp@gmail.com, Michael Gallis, magalli@sandia.gov
    Sandia National Laboratories
 
    Copyright (2014) Sandia Corporation.  Under the terms of Contract
@@ -45,10 +45,12 @@ class React : protected Pointers {
   double recomb_Af;
   Particle::OnePart *recomb_part3;  // ptr to 3rd particle in recomb reaction
 
-  int copy,copymode;         // 1 if class copy
+  int copy,uncopy,copymode;  // prevent deallocation of
+                             //  base class when child copy is destroyed
 
   React(class SPARTA *, int, char **);
-  React(class SPARTA *sparta) : Pointers(sparta) { style = NULL; random = NULL; }
+  React(class SPARTA *sparta) : Pointers(sparta) // needed for Kokkos
+    { style = NULL; random = NULL; }
   virtual ~React();
   virtual void init() {}
   virtual int recomb_exist(int, int) = 0;
