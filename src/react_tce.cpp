@@ -233,51 +233,47 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
               pow(1.0-r->coeff[1]/ecc,r->coeff[5]);
         } else {
 
-		double Kb;
-		double diam = collide->extract(isp,jsp,"diam");
-		double omega = collide->extract(isp,jsp,"omega");
-		double tref = collide->extract(isp,jsp,"tref");
-		static const double MY_PI  = 3.14159265358979323846; // pi
-		static const double MY_PIS = 1.77245385090551602729; // sqrt(pi)
-                double Qi,Qj,Qk,Qreact;
+          double Kb;
+          double diam = collide->extract(isp,jsp,"diam");
+          double omega = collide->extract(isp,jsp,"omega");
+          double tref = collide->extract(isp,jsp,"tref");
+          static const double MY_PI  = 3.14159265358979323846; // pi
+          static const double MY_PIS = 1.77245385090551602729; // sqrt(pi)
+                      double Qi,Qj,Qk,Qreact;
 
-		double epsilon = 1.0;         
-		if (isp == jsp) epsilon = 2.0;
+          double epsilon = 1.0;         
+          if (isp == jsp) epsilon = 2.0;
 
-		double mr = species[isp].mass * species[jsp].mass /
-		     (species[isp].mass + species[jsp].mass);
-		double sigma = MY_PI*diam*diam;
-		if (partition) {
-			int ksp = r->products[0]; //Begin modifications from Nizenkov et al.
-			Qi = Partition(species[isp].nvibmode, species[isp].rotdof, species[isp].nelecmode, particle->species[isp].symnum, 
-		                    particle->species[isp].elecdeg, particle->species[isp].electemp, particle->species[isp].vibtemp, 
-		                    particle->species[isp].rottemp, species[isp].mass, temp[icell]);
-			Qj = Partition(species[jsp].nvibmode, species[jsp].rotdof, species[jsp].nelecmode, particle->species[jsp].symnum, 
-		                    particle->species[jsp].elecdeg, particle->species[jsp].electemp, particle->species[jsp].vibtemp, 
-		                    particle->species[jsp].rottemp, species[jsp].mass, temp[icell]);
-			Qk = Partition(species[ksp].nvibmode, species[ksp].rotdof, species[ksp].nelecmode, particle->species[ksp].symnum, 
-		                    particle->species[ksp].elecdeg, particle->species[ksp].electemp, particle->species[ksp].vibtemp, 
-		                    particle->species[ksp].rottemp, species[ksp].mass, temp[icell]);
-			Qreact = (Qi * Qj)/Qk;
-			Kb = (r->coeff[7] * pow(temp[icell],r->coeff[3])) / Qreact;
-		} else {
-			Kb = r->coeff[7]*pow(temp[icell],r->coeff[3])*exp(-r->coeff[1]/(temp[icell]*update->boltz));
-                }
-		double *vi = ip->v;
-		double *vj = jp->v;
+          double mr = species[isp].mass * species[jsp].mass /
+              (species[isp].mass + species[jsp].mass);
+          double sigma = MY_PI*diam*diam;
+          if (partition) {
+            int ksp = r->products[0]; //Begin modifications from Nizenkov et al.
+            Qi = Partition(species[isp].nvibmode, species[isp].rotdof, species[isp].nelecmode, particle->species[isp].symnum, 
+                              particle->species[isp].elecdeg, particle->species[isp].electemp, particle->species[isp].vibtemp, 
+                              particle->species[isp].rottemp, species[isp].mass, temp[icell]);
+            Qj = Partition(species[jsp].nvibmode, species[jsp].rotdof, species[jsp].nelecmode, particle->species[jsp].symnum, 
+                              particle->species[jsp].elecdeg, particle->species[jsp].electemp, particle->species[jsp].vibtemp, 
+                              particle->species[jsp].rottemp, species[jsp].mass, temp[icell]);
+            Qk = Partition(species[ksp].nvibmode, species[ksp].rotdof, species[ksp].nelecmode, particle->species[ksp].symnum, 
+                              particle->species[ksp].elecdeg, particle->species[ksp].electemp, particle->species[ksp].vibtemp, 
+                              particle->species[ksp].rottemp, species[ksp].mass, temp[icell]);
+            Qreact = (Qi * Qj)/Qk;
+            Kb = (r->coeff[7] * pow(temp[icell],r->coeff[3])) / Qreact;
+          } else {
+            Kb = r->coeff[7]*pow(temp[icell],r->coeff[3])*exp(-r->coeff[1]/(temp[icell]*update->boltz));
+          }
+          double *vi = ip->v;
+          double *vj = jp->v;
 
-		double Tcoll = (mr * (pow(vi[0]-vj[0],2)+pow(vi[1]-vj[1],2)+pow(vi[2]-vj[2],2))) / (update->boltz * (5 - 2*omega));  //(Nizenkov);
-		double Rcoll = (2 * MY_PIS / (epsilon)) * pow(diam,2) * pow(Tcoll/tref,1-omega) * pow(2*update->boltz*tref/mr,.5);
-		Rcoll *= pow(2.5-omega,1-omega) * tgamma(2.5-omega) / tgamma(3.5-(2*omega));
+          double Tcoll = (mr * (pow(vi[0]-vj[0],2)+pow(vi[1]-vj[1],2)+pow(vi[2]-vj[2],2))) / (update->boltz * (5 - 2*omega));  //(Nizenkov);
+          double Rcoll = (2 * MY_PIS / (epsilon)) * pow(diam,2) * pow(Tcoll/tref,1-omega) * pow(2*update->boltz*tref/mr,.5);
+          Rcoll *= pow(2.5-omega,1-omega) * tgamma(2.5-omega) / tgamma(3.5-(2*omega));
 
-		react_prob += recomb_density * Kb / Rcoll; //Third order recombination     
-		//cout << react_prob << endl;
-                //cout << r->coeff[0] << " " << r->coeff[1] << " " << r->coeff[2] << " " << r->coeff[3] << " " << r->coeff[4] << " " << r->coeff[7] << " " << endl;
-		//cout << Kb << " " << Rcoll << " " << recomb_density * Kb / Rcoll << " " << random_prob << " " << Qreact << " "  << pow(temp[icell],r->coeff[3]) << " " << temp[icell] <<endl;
-		if (isnan(react_prob)) { 
-		   //cout << "Partition error: " << Qi << " " << Qj << " " << Qk << " " << temp[icell] << endl;
-		   error->all(FLERR,"Reaction Test Error");
-		}
+          react_prob += recomb_density * Kb / Rcoll; //Third order recombination     
+          if (isnan(react_prob)) { 
+            error->all(FLERR,"Reaction Test Error");
+          }
         }
         break;
       }
@@ -338,15 +334,13 @@ int ReactTCE::attempt(Particle::OnePart *ip, Particle::OnePart *jp,
 
           post_etotal = pre_etotal + r->coeff[4];
           //cout << "Recob product: " << r->products[0] << " Energy: " << post_etotal << endl;
-      }
-
-        return 1;
+          return 1;
       } else {
         return 0;
       }
     }
   }
-
+  
   return 0;
 }
 

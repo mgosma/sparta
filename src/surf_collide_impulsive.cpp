@@ -198,8 +198,6 @@ collide(Particle::OnePart *&ip, double &,
   //   to update per-particle properties which depend on
   //   temperature of the particle, e.g. fix vibmode and fix ambipolar
 
-  if (tmode == CUSTOM) twall = tvector[isurf];
-
   if (ip) {
     if (!velreset) impulsive(ip,norm);
     if (modify->n_update_custom) {

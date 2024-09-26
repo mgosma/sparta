@@ -60,10 +60,6 @@ class DumpSurf : public Dump {
   char **id_custom;          // their IDs
   int *custom;               // list of indices for the Custom attributes
 
-  int ncustom;               // # of surf Custom attributes used by dump
-  char **id_custom;          // their IDs
-  int *custom;               // list of indices for the Custom attributes
-
   int dimension;
   int axisymmetric;
 

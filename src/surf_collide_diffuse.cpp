@@ -101,9 +101,6 @@ SurfCollideDiffuse::SurfCollideDiffuse(SPARTA *sparta, int narg, char **arg) :
 
   vstream[0] = vstream[1] = vstream[2] = 0.0;
 
-  distributed = surf->distributed;
-  implicit = surf->implicit;
-
   // initialize RNG
 
   random = new RanKnuth(update->ranmaster->uniform());
@@ -174,17 +171,15 @@ collide(Particle::OnePart *&ip, double &,
   //   to update per-particle properties which depend on
   //   temperature of the particle, e.g. fix vibmode and fix ambipolar
 
-  if (tmode == CUSTOM) twall = tvector[isurf];
-
   if (ip) {
-    if (!velreset) diffuse(ip,norm,isurf);
+    if (!velreset) diffuse(ip,norm);
     if (modify->n_update_custom) {
       int i = ip - particle->particles;
       modify->update_custom(i,tsurf,tsurf,tsurf,vstream);
     }
   }
   if (jp) {
-    if (!velreset) diffuse(jp,norm,isurf);
+    if (!velreset) diffuse(jp,norm);
     if (modify->n_update_custom) {
       int j = jp - particle->particles;
       modify->update_custom(j,tsurf,tsurf,tsurf,vstream);
@@ -217,7 +212,7 @@ collide(Particle::OnePart *&ip, double &,
    resets particle(s) to post-collision outward velocity
 ------------------------------------------------------------------------- */
 
-void SurfCollideDiffuse::diffuse(Particle::OnePart *p, double *norm, int jsurf)
+void SurfCollideDiffuse::diffuse(Particle::OnePart *p, double *norm)
 {
   // specular reflection
   // reflect incident v around norm
