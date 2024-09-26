@@ -1,0 +1,72 @@
+################################################################################
+# 2d axi flow around a capsule
+# Restart file for Unsteady simulation, run after initial input file until steady state
+# Note:
+#  - The "comm/sort” option to the “global” command is used to match MPI runs.
+#  - The “twopass” option is used to match Kokkos runs.
+# The "comm/sort" and "twopass" options should not be used for production runs.
+################################################################################
+
+###################################
+# Simulation parameters
+###################################
+seed	    	    847384
+
+###################################
+# Read Restart File
+###################################
+read_restart restart.sparta.*
+
+#####################################
+# Gas/Collision Model Specification #
+#####################################
+# If Charged
+#fix                 ambi ambipolar e N2+ CN+ N+ C+
+
+collide             vss all ../Data/Titan.vss
+collide_modify      vremax 1000 yes nearcp yes 50 vibrate discrete
+fix                 vib vibmode
+
+compute tcell thermal/grid all all temp press
+react        tce ../Data/Titan.tce
+react_modify rboost 1.0
+react_modify partial_energy no c_tcell[1] 
+react_modify partition yes
+
+#####################################################
+# Surface generation and collision specification
+#####################################################
+compute             1 surf all all etot
+fix                 1 ave/surf all 1 250 250 c_1[1] ave one
+fix                 2 surf/temp all 250 f_1 100 0.9 temperature
+surf_collide        1 diffuse s_temperature 1.0
+surf_modify         1 collide 1
+
+###################################
+# Unsteady Output
+###################################
+compute             2 grid all all nrho temp usq vsq wsq
+fix                 3 ave/grid all 1 100 100 c_2[*]
+
+compute             2b lambda/grid f_3[1] f_3[2] N2 kall
+compute             MFP reduce min c_2b[1]
+compute             Kn reduce min c_2b[2]
+
+compute             tstep dt/grid all 1.0 1.0 &
+                    c_2b[1] f_3[2] f_3[3] f_3[4] f_3[5]
+
+fix                 DT dt/reset 1000 c_tstep 0.1 0
+
+fix                 10 adapt 1000 all refine coarsen value c_2b[2] 0.8 1.6 &
+                    combine min thresh less more cells 2 2 1
+fix                 load balance 1000 1.1 rcb part
+
+stats_style         step cpu np ncoll nreact nscoll c_MFP c_Kn ngrid maxlevel dt f_DT[*]
+stats_modify        flush yes
+stats               100
+
+restart             10000 restart.sparta
+
+log                 log.sparta append
+
+run                 500000 pre no post no every 1000 "react_modify partial_energy no c_tcell[1]"
