@@ -1,0 +1,80 @@
+################################################################################
+# 2d flow around a circle
+#
+# Note:
+#  - The "comm/sort” option to the “global” command is used to match MPI runs.
+#  - The “twopass” option is used to match Kokkos runs.
+# The "comm/sort" and "twopass" options should not be used for production runs.
+
+
+# tested configs:
+# original code with N/O atoms at 5000 m/s - clear shock no bump
+# original code with CH4 (smooth) at 5000 m/s - clear shock no bump
+# original code with CH4 (discrete) at 2500 m/s - 
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code - 
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code and Modififed Chemistry w/ reactions disabled - 
+# CH4 (discrete) at 2500 m/s with modified VSS Relaxation Code and Modififed Chemistry w/ reactions enabled - 
+################################################################################
+
+seed	    	    12345
+dimension   	    3
+global              gridcut 1.0e-5 comm/sort yes
+
+boundary	    ss ss ss
+#boundary	    rr rr rr
+
+
+create_box  	    0 4.64E-6 0 4.64E-6 0 4.64E-6
+#create_box  	    0 4.641588834E-6 0 4.641588834E-6 0 4.641588834E-6
+create_grid 	    3 3 3
+balance_grid        rcb cell
+#global		    fnum 4.46231e15 weight cell radius #111
+#global		    fnum 2.1411e16 weight cell radius #132
+global		    fnum 100.0
+
+species		    Titan.species N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar e N2+ CN+ N+ C+ vibfile Titan.vib rotfile Titan.rot elecfile Titan.elec
+#mixture		    air N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar e N2+ CN+ N+ C+ vstream 7384.53 0.0 0.0 temp 165.93 nrho 2.5825207e18 #111
+#mixture		    air N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar e N2+ CN+ N+ C+ vstream 7384.53 0.0 0.0 temp 165.93 nrho 1.2391563827e19 #132
+mixture		    air N2 CH4 CH3 CH2 CH C2 H2 CN HCN N C H Ar e N2+ CN+ N+ C+ vstream 0.0 0.0 0.0 temp 10165.93 nrho 1.340557467e23 #148
+mixture             air N2 frac 0.5
+mixture             air CH4 frac 0.5
+
+
+#fix 7 balance 5000 1.1 rcb time
+collide             vss air FULL_VSS_DATABASE.error
+#collide_modify      vremax 500 yes
+collide_modify      vibrate discrete
+fix                 vib vibmode
+create_particles air n 0
+#fix		    in emit/face air xlo yhi twopass
+compute test thermal/grid all air temp press
+
+
+react        tce Titan.tce
+react_modify rboost 1.0
+react_modify partial_energy no c_test[1] 
+react_modify partition yes
+
+
+#fix                 ambi ambipolar e N2+ CN+ N+ C+
+#collide_modify      ambipolar yes
+
+surf_collide hotwall diffuse 5000 .5
+bound_modify xlo xhi ylo yhi zlo zhi collide hotwall 
+
+
+timestep 	    0.000000001
+
+
+
+
+
+stats		    25
+stats_modify        flush yes
+stats_style	    step cpu np nattempt ncoll nscoll nscheck ngrid nreact
+#restart             8000 restart.*.flow
+run 		    300
+
+         
+
+

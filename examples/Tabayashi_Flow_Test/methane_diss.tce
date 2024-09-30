@@ -1,0 +1,12 @@
+##################### New Reduced 12 reaction mechanism (With reverse - 24 reactions total) (1/13/2022)
+##### Dissociation (Note: Must Have Reaction Copied for Every possible "M" Molecule)
+# Attempt to compute dissociation rate based on provided recombination reaction rates
+
+CH4 + CH4 --> CH3 + H + CH4
+D A 2.0 3.52541E-21 9.57E-24 -6.3 7.1978E-19
+
+######## Recombination
+CH3 + H --> CH4
+R A 0.0 8.1734e-19 7.8047e17 -8.2 7.1978E-19
+
+

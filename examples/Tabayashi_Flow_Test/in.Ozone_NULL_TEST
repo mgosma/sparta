@@ -1,0 +1,81 @@
+################################################################################
+################################################################################
+
+seed	    	    12345
+dimension   	    2
+global              gridcut 0.0 comm/sort yes
+
+boundary	    o p p
+
+create_box  	    0 0.02 -1.25e-6 1.25e-6 -1.25e-6 1.25e-6
+create_grid 	    2000 1 1 levels 2 subset 2 *250 * * 4 1 1 #1D
+
+global		    fnum 5.73343E+10 # At steady-state, should lead to approximately 100 particles per cell at the inlet
+#global		    fnum 5.73343E+09 # At steady-state, should lead to approximately 1000 particles per cell at the inlet
+
+species		    Ozone.species O3 O2 O Ar vibfile Ozone.vib
+mixture		    air O3 O2 O vstream 4.391 0.0 0.0 temp 400.00 nrho 9.17348E+23 #5 kPa
+mixture             air O3 frac 0.8117
+mixture             air O2 frac 0.1797
+mixture             air O  frac 0.0086
+mixture		    ambient Ar vstream 4.391 0.0 0.0 temp 400.00 nrho 9.0540E+23 #5 kPa
+mixture		    backflow O2 O vstream 4.391 0.0 0.0 temp 400.00 nrho 9.0540E+23 #5 kPa
+mixture             backflow O2 frac 0.864
+mixture             backflow O  frac 0.136
+
+collide             vss all Gosma_low_T.vss
+collide_modify      vibrate discrete
+collide_modify      nearcp yes 100
+fix                 vib vibmode
+
+create_particles    air n 0
+fix		    inlet emit/face air xlo
+#fix		    inlet emit/face air xlo subsonic 5066.25 400.0
+fix		    outlet emit/face backflow xhi subsonic 5066.25 NULL
+
+balance_grid        rcb cell
+fix 7 balance 5000 1.1 rcb time
+compute TPgrid thermal/grid all all temp press
+compute num grid all species n
+compute Temp reduce ave c_TPgrid[1]
+compute Press reduce ave c_TPgrid[2]
+compute ncount count species
+
+react        tce Ozone.tce
+react_modify rboost 1.0
+react_modify partial_energy no c_TPgrid[1] 
+react_modify partition no
+
+timestep 	    5e-9
+
+stats		    100
+stats_modify        flush yes
+stats_style	    step cpu np nattempt ncoll nreact c_Temp c_Press c_ncount[*]
+
+run 		    2000000
+
+#adapt_grid all refine coarsen value c_MFP[2] 2.0 4.5 iterate 2 dir 1 0 0 
+
+compute frac grid all species nfrac
+compute mfrac grid all species massfrac
+compute trot grid all species trot
+compute tvib tvib/grid all air
+compute tviball tvib/grid all species
+compute thermal thermal/grid all species temp
+compute vel grid all air trot n nrho massrho u v w
+compute dim property/grid all xlo xhi ylo yhi vol
+
+compute 1 grid all air nrho temp
+fix 2 ave/grid all 2 500 1000 c_1[1] c_TPgrid[1] ave running
+compute MFP lambda/grid f_2[1] f_2[2] O2 kall
+
+fix 8 ave/grid all 2 500 1000 c_TPgrid[*] c_tvib[*] c_vel[*] c_dim[*] c_frac[*] c_mfrac[*] c_thermal[*] c_trot[*] c_tviball[*] ave running
+dump 75 grid all 100000 OzoneNULL.grid id f_8[*] c_MFP[*]
+
+
+
+run 		    1000000
+
+write_restart restart.ozone*NULL          
+
+

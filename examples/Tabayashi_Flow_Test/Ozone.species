@@ -1,0 +1,24 @@
+# Titan Species data
+
+# ID
+# Molwt (amu)
+# Molmass (kg)
+# Rotational dof 
+# RotRel
+# Vibrational dof
+# VibRel
+# VibTemp (K)
+# species wt
+# charge
+
+O   16.00    2.6569e-26  0    5.0   0    0.0           0.0     1.0      0.0
+O2  32.00    5.3137e-26  2    5.0   2    250.0      2256.0     1.0      0.0
+O3  48.00    7.9706e-26  3    5.0   6    250.0      1597.1     1.0      0.0
+Ar  40.00    6.63E-26  0    .0   0   .0    0.0    1.0      0.0
+
+
+
+
+
+
+
